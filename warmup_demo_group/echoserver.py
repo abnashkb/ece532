@@ -16,7 +16,7 @@ bytes that contain the new value to set to SERVER_VALUE.
 """
 import socket
 
-PORT = 9090
+PORT = 22 #9090
 BUFFER_SIZE = 1024
 SERVER_VALUE = bytes.fromhex('DEADBEEF')
 
