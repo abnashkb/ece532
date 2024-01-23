@@ -1,3 +1,4 @@
+
 /******************************************************************************
 *
 * Copyright (C) 2009 - 2017 Xilinx, Inc.  All rights reserved.
@@ -118,8 +119,7 @@ char is_connected;
 #define LED 0xffff
 #define CHANNEL 1
 //GPIO drivers
-XGpio GpioLED;
-XGpio GpioSWT;
+XGpio Gpio_LED_SW;
 XGpio GpioBUTTONS;
 //global vars
 uint32_t value_send = 0;
@@ -229,24 +229,26 @@ int main()
 
 	/*** AKB ADDED START ***/
 
-	//setup LED
-	int StatusLED = XGpio_Initialize(&GpioLED, XPAR_AXI_GPIO_LED_DEVICE_ID);
-	if (StatusLED != XST_SUCCESS) {
+	//setup LED and SWs
+	int Status_LED_SWs = XGpio_Initialize(&Gpio_LED_SW, XPAR_AXI_GPIO_0_DEVICE_ID);
+	if (Status_LED_SWs != XST_SUCCESS) {
 			xil_printf("LED Gpio Initialization Failed\r\n");
 			return XST_FAILURE;
 	}
-	XGpio_SetDataDirection(&GpioLED, CHANNEL, ~LED); //sets all 16 bits as output (0)
+
+	XGpio_SetDataDirection(&Gpio_LED_SW, 1, 0x0000FFFF); //sets all 16 bits as input (F) [SW]
+	XGpio_SetDataDirection(&Gpio_LED_SW, 2, 0x00000000); //sets all 16 bits as output (0) [LED]
 
 	//setup switches
-	int StatusSWT = XGpio_Initialize(&GpioSWT, XPAR_AXI_GPIO_SWT_DEVICE_ID);
-	if (StatusSWT != XST_SUCCESS) {
-				xil_printf("SWT Gpio Initialization Failed\r\n");
-				return XST_FAILURE;
-	}
-	XGpio_SetDataDirection(&GpioSWT, CHANNEL, 0xffff); //sets all 16 bits as input (1)
+	//int StatusSWT = XGpio_Initialize(&GpioSWT, XPAR_AXI_GPIO_SWT_DEVICE_ID);
+	//if (StatusSWT != XST_SUCCESS) {
+	//			xil_printf("SWT Gpio Initialization Failed\r\n");
+	//			return XST_FAILURE;
+	//}
+	//XGpio_SetDataDirection(&GpioSWT, CHANNEL, 0xffff); //sets all 16 bits as input (1)
 
 	//setup BUTTONS
-	int StatusBUTTONS = XGpio_Initialize(&GpioBUTTONS, XPAR_AXI_GPIO_BUTTONS_DEVICE_ID);
+	int StatusBUTTONS = XGpio_Initialize(&GpioBUTTONS, XPAR_AXI_GPIO_1_DEVICE_ID);
 		if (StatusBUTTONS != XST_SUCCESS) {
 					xil_printf("BUTTONS Gpio Initialization Failed\r\n");
 					return XST_FAILURE;
@@ -254,6 +256,10 @@ int main()
 	XGpio_SetDataDirection(&GpioBUTTONS, CHANNEL, 0xffff); //sets all buttons as input (1)
 
 	/*** AKB ADDED END ***/
+
+	u32 previous_buttons = 0x00000000;
+	int button_rising_edge = 0;
+	int debounce_counter = 0;
 
 	//Event loop
 	while (1) {
@@ -271,76 +277,114 @@ int main()
 		//Process data queued after interupt
 		xemacif_input(app_netif);
 
-
-
 		//ADD CODE HERE to be repeated constantly
 		// Note - should be non-blocking
 		// Note - can check is_connected global var to see if connection open
+
 		/*** AKB ADDED START ***/
 		uint32_t buttons_state = XGpio_DiscreteRead(&GpioBUTTONS, 1);
 		//DESCRIPTION	Push Buttons 5 to 0 {Down Right Left Up Center}
 		//xil_printf("%08x\n", buttons_state);
-		if (buttons_state & 0x02) { //BTNL
-			value_send = (XGpio_DiscreteRead(&GpioSWT, CHANNEL) << 16) | (value_send & 0x00ff); //update upper 16 bits
-			XGpio_DiscreteWrite(&GpioLED, CHANNEL, (value_recv & 0xffff0000) >> 16);
+
+		if ((buttons_state != 0x00000000) && (previous_buttons == 0x00000000) && (debounce_counter > 100000)) {
+			button_rising_edge = 1;
+			debounce_counter = 0;
+		} else {
+			button_rising_edge = 0;
+		}
+
+		previous_buttons = buttons_state;
+
+		if ((buttons_state & 0x02) && button_rising_edge) { //BTNL
 			xil_printf("ButtonL\n");
+			xil_printf("Old value_send: %08x\n", value_send);
+			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&Gpio_LED_SW, 1));
+
+			value_send = (XGpio_DiscreteRead(&Gpio_LED_SW, 1) << 16) | (value_send & 0x0000ffff); //update upper 16 bits
+			XGpio_DiscreteWrite(&Gpio_LED_SW, 2, (value_recv & 0xffff0000) >> 16);
+
+			xil_printf("New value_send: %08x\n", value_send);
+
 		}
-		else if (buttons_state & 0x04) { //BTNR
-			value_send = XGpio_DiscreteRead(&GpioSWT, CHANNEL) | (value_send & 0xff00); //update lower 16 bits
-			XGpio_DiscreteWrite(&GpioLED, CHANNEL, value_recv & 0x0000ffff);
+
+		else if ((buttons_state & 0x04) && button_rising_edge) { //BTNR
 			xil_printf("ButtonR\n");
+			xil_printf("Old value_send: %08x\n", value_send);
+			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&Gpio_LED_SW, 1));
+
+			value_send = XGpio_DiscreteRead(&Gpio_LED_SW, 1) | (value_send & 0xffff0000); //update lower 16 bits
+			XGpio_DiscreteWrite(&Gpio_LED_SW, 2, value_recv & 0x0000ffff);
+
+			xil_printf("New value_send: %08x\n", value_send);
 		}
 
-		if (buttons_state & 0x08) { //BTNC
+		if ((buttons_state & 0x08) && button_rising_edge) { //BTNC
 			xil_printf("BTNC\n");
-			const char post_start[] = "0x50F45354";
-			char msg[11]; //bc 4 chars of POST and then 32 bits / 8 bits per char for 6 more chars, plus 1 extra for NULL termination
-			sprintf(msg, "%s%08lx", post_start, value_send); //32 bits is 8 hex digits to add to end
-			//Just send a single packet
+			char send_buf[8];
+			u32_t i;
+
+			send_buf[0] = (char)(0x50);		//P
+			send_buf[1] = (char)(0x4F);		//O
+			send_buf[2] = (char)(0x53);		//S
+			send_buf[3] = (char)(0x54);		//T
+
+			u32 send_mask = 0xFF000000;
+
+			for(i = 0; i < 4; i = i + 1) {
+				send_buf[i + 4] = (char)((value_send >> (32 - (8 * (i+1)))));		// Every iteration, shift to right 8 more bits, and get lower 8 bits (0xFF mask)
+			}
+
 			u8_t apiflags = TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE;
 
 			//Loop until enough room in buffer (should be right away)
-			while (tcp_sndbuf(c_pcb) < sizeof(msg));
+			while (tcp_sndbuf(c_pcb) < sizeof(send_buf));
 
-			err_t err = tcp_write(c_pcb, msg, sizeof(msg), apiflags);
+			err_t err = tcp_write(c_pcb, send_buf, sizeof(send_buf), apiflags);
 			if (err != ERR_OK) {
 				xil_printf("Error writing");
 			}
+
 			//send the data packet
 			err = tcp_output(c_pcb);
+
 			if (err != ERR_OK) {
 				xil_printf("TCP client: Error on tcp_output: %d\n",err);
 				return err;
 			}
 		}
-		if (buttons_state & 0x01) { //BTND
+
+		if ((buttons_state & 0x01) && button_rising_edge) { //BTND
 			xil_printf("BTND\n");
-			const char get_start[] = "0x474554";
-			char msg[11]; //bc 4 chars of POST and then 32 bits / 8 bits per char for 6 more chars, plus 1 extra for NULL termination
-			sprintf(msg, "%s%08lx", get_start, value_send); //32 bits is 8 hex digits to add to end
+			char send_buf[3];
+
+			send_buf[0] = (char)(0x47);		//G
+			send_buf[1] = (char)(0x45);		//E
+			send_buf[2] = (char)(0x54);		//T
+
 			//Just send a single packet
 			u8_t apiflags = TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE;
 
 			//Loop until enough room in buffer (should be right away)
-			while (tcp_sndbuf(c_pcb) < sizeof(msg));
+			while (tcp_sndbuf(c_pcb) < sizeof(send_buf));
 
-			err_t err = tcp_write(c_pcb, msg, sizeof(msg), apiflags);
+			err_t err = tcp_write(c_pcb, send_buf, sizeof(send_buf), apiflags);
 			if (err != ERR_OK) {
 				xil_printf("Error writing");
 			}
+
 			//send the data packet
 			err = tcp_output(c_pcb);
+
 			if (err != ERR_OK) {
 				xil_printf("TCP client: Error on tcp_output: %d\n",err);
 				return err;
 			}
 		}
 
-		xil_printf("is_connected status: %d\n", is_connected);
-
+		debounce_counter += 1;
+		//xil_printf("TIME!!\n");
+		//xil_printf("is_connected status: %d\n", is_connected);
 		/*** AKB ADDED END ***/
-
-
 	}
 
 	//Never reached
@@ -438,6 +482,8 @@ static void tcp_client_close(struct tcp_pcb *pcb)
 
 	xil_printf("Closing Client Connection\n");
 
+	is_connected = 0;
+
 	if (pcb != NULL) {
 		tcp_sent(pcb, NULL);
 		tcp_recv(pcb,NULL);
@@ -513,14 +559,13 @@ static err_t tcp_client_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
 
 static err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
+
 	//If no data, connection closed
 	if (!p) {
 		xil_printf("No data received\n");
 		tcp_client_close(tpcb);
 		return ERR_OK;
 	}
-
-
 
 	//ADD CODE HERE to do on packet reception
 
@@ -538,10 +583,23 @@ static err_t tcp_client_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, er
 	//END OF ADDED CODE
 
 	//AKB ADDED START
-	value_recv = (unsigned int) strtoul(packet_data, NULL, 10);
+	//value_recv = (unsigned int) strtoul(packet_data, NULL, 10);
+
+	// Copy packet contents into value_recv
+	u32_t j;
+	u32 recv_placeholder;
+	recv_placeholder = 0x00000000;
+
+	for(j = 0; j < 4; j = j + 1) {
+		recv_placeholder = (recv_placeholder << 8);
+		u32 curr_char = (u32) (0x000000FF & packet_data[j]);
+		recv_placeholder = recv_placeholder | curr_char;
+	}
+
+	value_recv = recv_placeholder;
+
+	xil_printf("Data received: %08x\n", value_recv);
 	//AKB ADDED END
-
-
 
 	//Indicate done processing
 	tcp_recved(tpcb, p->tot_len);
@@ -575,3 +633,4 @@ static void tcp_client_err(void *arg, err_t err)
 	c_pcb = NULL;
 	xil_printf("TCP connection aborted\n");
 }
+
