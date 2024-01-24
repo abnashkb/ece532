@@ -119,8 +119,9 @@ char is_connected;
 #define LED 0xffff
 #define CHANNEL 1
 //GPIO drivers
-XGpio Gpio_LED_SW;
+XGpio Gpio_LED;
 XGpio GpioBUTTONS;
+XGpio GpioSWT;
 //global vars
 uint32_t value_send = 0;
 uint32_t value_recv = 0xffffffff;
@@ -229,26 +230,26 @@ int main()
 
 	/*** AKB ADDED START ***/
 
-	//setup LED and SWs
-	int Status_LED_SWs = XGpio_Initialize(&Gpio_LED_SW, XPAR_AXI_GPIO_0_DEVICE_ID);
-	if (Status_LED_SWs != XST_SUCCESS) {
+	//setup LED
+	int Status_LED = XGpio_Initialize(&Gpio_LED, XPAR_AXI_GPIO_LED_DEVICE_ID);
+	if (Status_LED != XST_SUCCESS) {
 			xil_printf("LED Gpio Initialization Failed\r\n");
 			return XST_FAILURE;
 	}
 
-	XGpio_SetDataDirection(&Gpio_LED_SW, 1, 0x0000FFFF); //sets all 16 bits as input (F) [SW]
-	XGpio_SetDataDirection(&Gpio_LED_SW, 2, 0x00000000); //sets all 16 bits as output (0) [LED]
+//	XGpio_SetDataDirection(&Gpio_LED, 1, 0x0000FFFF); //sets all 16 bits as input (F) [SW]
+	XGpio_SetDataDirection(&Gpio_LED, 1, 0x00000000); //sets all 16 bits as output (0) [LED]
 
 	//setup switches
-	//int StatusSWT = XGpio_Initialize(&GpioSWT, XPAR_AXI_GPIO_SWT_DEVICE_ID);
-	//if (StatusSWT != XST_SUCCESS) {
-	//			xil_printf("SWT Gpio Initialization Failed\r\n");
-	//			return XST_FAILURE;
-	//}
-	//XGpio_SetDataDirection(&GpioSWT, CHANNEL, 0xffff); //sets all 16 bits as input (1)
+	int StatusSWT = XGpio_Initialize(&GpioSWT, XPAR_AXI_GPIO_SWT_DEVICE_ID);
+	if (StatusSWT != XST_SUCCESS) {
+				xil_printf("SWT Gpio Initialization Failed\r\n");
+				return XST_FAILURE;
+	}
+	XGpio_SetDataDirection(&GpioSWT, CHANNEL, 0xffff); //sets all 16 bits as input (1)
 
 	//setup BUTTONS
-	int StatusBUTTONS = XGpio_Initialize(&GpioBUTTONS, XPAR_AXI_GPIO_1_DEVICE_ID);
+	int StatusBUTTONS = XGpio_Initialize(&GpioBUTTONS, XPAR_AXI_GPIO_BUTTONS_DEVICE_ID);
 		if (StatusBUTTONS != XST_SUCCESS) {
 					xil_printf("BUTTONS Gpio Initialization Failed\r\n");
 					return XST_FAILURE;
@@ -298,10 +299,10 @@ int main()
 		if ((buttons_state & 0x02) && button_rising_edge) { //BTNL
 			xil_printf("ButtonL\n");
 			xil_printf("Old value_send: %08x\n", value_send);
-			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&Gpio_LED_SW, 1));
+			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&GpioSWT, 1));
 
-			value_send = (XGpio_DiscreteRead(&Gpio_LED_SW, 1) << 16) | (value_send & 0x0000ffff); //update upper 16 bits
-			XGpio_DiscreteWrite(&Gpio_LED_SW, 2, (value_recv & 0xffff0000) >> 16);
+			value_send = (XGpio_DiscreteRead(&GpioSWT, 1) << 16) | (value_send & 0x0000ffff); //update upper 16 bits
+			XGpio_DiscreteWrite(&Gpio_LED, 1, (value_recv & 0xffff0000) >> 16);
 
 			xil_printf("New value_send: %08x\n", value_send);
 
@@ -310,10 +311,10 @@ int main()
 		else if ((buttons_state & 0x04) && button_rising_edge) { //BTNR
 			xil_printf("ButtonR\n");
 			xil_printf("Old value_send: %08x\n", value_send);
-			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&Gpio_LED_SW, 1));
+			xil_printf("SW value: %08x\n", XGpio_DiscreteRead(&GpioSWT, 1));
 
-			value_send = XGpio_DiscreteRead(&Gpio_LED_SW, 1) | (value_send & 0xffff0000); //update lower 16 bits
-			XGpio_DiscreteWrite(&Gpio_LED_SW, 2, value_recv & 0x0000ffff);
+			value_send = XGpio_DiscreteRead(&GpioSWT, 1) | (value_send & 0xffff0000); //update lower 16 bits
+			XGpio_DiscreteWrite(&Gpio_LED, 1, value_recv & 0x0000ffff);
 
 			xil_printf("New value_send: %08x\n", value_send);
 		}
