@@ -1,5 +1,19 @@
-# Example of multi-client echo server
+""" Simple Server Example
 
+This script creates a socket and listens for connections
+on any IPv4 interface on port 9090. When a connection is
+established, the server waits for a GET or POST command.
+
+GET:
+  FORMAT: b'GET'
+The server will send the current 32-bit SERVER_VALUE to the client.
+  
+POST:
+  FORMAT: b'POST' + XXXX
+The format of this command must be the four bytes corresponding
+to the ASCII characters 'POST' followed immediately by four
+bytes that contain the new value to set to SERVER_VALUE.
+"""
 import socket
 import _thread
 
@@ -8,8 +22,9 @@ PORT = 22 # The port used by this TCP server
 BUFFER_SIZE = 1024
 SERVER_VALUE = bytes.fromhex('DEADBEEF')
 
-def open_new_client(connection, addr):
-    print("Connected to client ", addr[0], " port ", addr[1])
+def open_new_client(connection):
+    print("CONNECTION")
+    global SERVER_VALUE
 
     # Loop until connection closed
     while True:
@@ -28,7 +43,7 @@ def open_new_client(connection, addr):
     # Close the connection if break from loop
     connection.shutdown(1)
     connection.close()
-    print("Connection to client ", addr[0], " port ", addr[1], " closed")
+    print("CONNECTION CLOSED")
 
 def listen():
     # Setup the socket
@@ -38,12 +53,12 @@ def listen():
     # Bind to an address and port to listen on
     connection.bind((HOST, PORT))
     connection.listen(10)
-    print("Server opened on ",HOST," port ", PORT)
+    print("BEGIN LISTENING ON PORT", PORT)
 
     # Loop forever, accepting all connections in new thread
     while True:
-        new_conn, new_addr = connection.accept()
-        _thread.start_new_thread(open_new_client,(new_conn, new_addr))
+        new_conn, _ = connection.accept()
+        _thread.start_new_thread(open_new_client, (new_conn,))
 
 if __name__ == "__main__":
     try:
