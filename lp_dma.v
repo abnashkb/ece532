@@ -21,7 +21,7 @@ module lp_dma(
     // AXI4 MASTER SIGNALS going to MIG
     output wire [1:0] M_AXI_ARID,       //DONE
     output wire [31:0] M_AXI_ARADDR,    //DONE
-    output wire [7:0] M_AXI_ARLEN,      //DONE - NON_TRIVIAL: SET BY FSM BY CALCULATING DATA REMAINING TO FETCH
+    output wire [7:0] M_AXI_ARLEN,      //DONE
     output wire [2:0] M_AXI_ARSIZE,     //DONE
     output wire [1:0] M_AXI_ARBURST,    //DONE - INCR BURST TYPE
     output wire M_AXI_ARLOCK,           //DONE
@@ -140,7 +140,9 @@ module lp_dma(
             S6_ROW = 'd8,
             BUFFER_WRITE_1 = 'd9,
             BUFFER_WRITE_2 = 'd10,
-            BUFFER_WRITE_3 = 'd11;
+            BUFFER_WRITE_3 = 'd11,
+            BUFFER_WRITE_4 = 'd12,
+            BUFFER_WRITE_5 = 'd13;
 
   reg [5:0] current_state;
   reg [5:0] jump_state; // For buffer write to avoid duplicated states
@@ -183,7 +185,7 @@ module lp_dma(
       case (current_state)
         S0:
         begin
-          // Wait on START signal, on which we assert busy flag then go to FIFO wait stage
+          // Wait on START signal, on which we assert busy flag
           fsm_done <= 1'b0;       // Clear done signal from final state
 
           if (fetch_start == 1'b1)
@@ -194,8 +196,6 @@ module lp_dma(
           else
             current_state <= S0;
         end
-
-        /***************** ROW INDEXING STATES BELOW ********************/
 
         S1_ROW:
         begin
@@ -225,7 +225,7 @@ module lp_dma(
 
         S3_ROW:
         begin
-          // Wait for RVALID from memory and then go to write data that you just read to FIFO
+          // Wait for RVALID from memory and then go to write data that you just read to the temp burst buffer
           if (M_AXI_RVALID == 1'b1)
           begin
             if (M_AXI_RLAST == 1'b0)
@@ -236,7 +236,7 @@ module lp_dma(
             write_buffer[write_buffer_counter] <= M_AXI_RDATA;
             write_buffer_counter <= write_buffer_counter + 1'b1;
 
-            // fsm_axi_rready <= 1'b0;
+            fsm_axi_rready <= 1'b0;
           end
           else
             current_state <= S3_ROW;
@@ -245,8 +245,9 @@ module lp_dma(
         S4_ROW_NOT_LAST:
         begin
           // Check if the buffer is full.
-          if (write_buffer_counter == 256)
+          if (write_buffer_counter == 255)
           begin
+            // If buffer is full, write the buffer to BRAM
             current_state <= BUFFER_WRITE_1;
             jump_state <= S5_ROW_NOT_LAST;
           end
@@ -256,22 +257,18 @@ module lp_dma(
 
         S4_ROW_LAST:
         begin
-          // Check if the buffer is full.
-          if (write_buffer_counter == 256)
-          begin
-            current_state <= BUFFER_WRITE_1;
-            jump_state <= S5_ROW_LAST;
-          end
-          else
-            current_state <= S5_ROW_LAST;
+          // Here, we just need to empty the buffer and write whatever is left to BRAM
+          current_state <= BUFFER_WRITE_1;
+          jump_state <= S5_ROW_LAST;
         end
 
         BUFFER_WRITE_1:
         begin
           // // Set AWADDR and AWLEN to the correct incremented amount - increment by 4 bytes (next 32-bits)
           fsm_axi_awaddr <= bram_base_addr + (write_element_counter << 'd2);
-          fsm_axi_awlen <= (num_rows - write_element_counter < 256) ? (num_rows[7:0] - write_element_counter[7:0] - 1) : 8'b1111_1111; // If number of remaining elements to get is >= 256, then full burst (max of 256 beats per burst), otherwise, specify just the remaining elements
-          burst_element_counter <= 8'b0;  // Also need to reset the burst counter
+          fsm_axi_awlen <= write_buffer_counter;
+          burst_element_counter <= 8'b0;  // Also need to reset the burst counter and write buffer counter
+          write_buffer_counter <= 8'b0;
 
           fsm_axi_awvalid <= 1'b1;
           current_state <= BUFFER_WRITE_2;
@@ -283,12 +280,8 @@ module lp_dma(
           if (BRAM_M_AXI_AWREADY == 1'b1)
           begin
             current_state <= BUFFER_WRITE_3;
-
             fsm_axi_awvalid <= 1'b0;
             fsm_axi_bready <= 1'b1;
-            fsm_axi_wdata <= write_buffer[burst_element_counter];
-            fsm_axi_wvalid <= 1'b1;
-            fsm_axi_wlast <= (burst_element_counter == fsm_axi_awlen) ? 1'b1 : 1'b0; // If we are on the last beat of the burst, assert WLAST
           end
           else
             current_state <= BUFFER_WRITE_2;
@@ -296,20 +289,43 @@ module lp_dma(
 
         BUFFER_WRITE_3:
         begin
+          current_state <= BUFFER_WRITE_4;
+          fsm_axi_wdata <= write_buffer[burst_element_counter];
+          fsm_axi_wvalid <= 1'b1;
+          fsm_axi_wlast <= (burst_element_counter == fsm_axi_awlen) ? 1'b1 : 1'b0; // If we are on the last beat of the burst, assert WLAST
+        end
+
+        BUFFER_WRITE_4:
+        begin
           if (BRAM_M_AXI_WREADY == 1'b1)
           begin
             // Deassert wlast and wvalid
+            // Check if we are done writing the buffer and loop back if not
+            current_state <= (fsm_axi_wlast) ? BUFFER_WRITE_3 : BUFFER_WRITE_5;
             fsm_axi_wvalid <= 1'b0;
             fsm_axi_wlast <= 1'b0;
             // Increment write and burst counters
             write_element_counter <= write_element_counter + 1'b1;
             burst_element_counter <= burst_element_counter + 1'b1;
+          end
+          else
+            current_state <= BUFFER_WRITE_4;
+        end
 
+        BUFFER_WRITE_5:
+        begin
+          // Wait for BVALID, and on BVALID, deassert BREADY
+          if (BRAM_M_AXI_BVALID == 1'b1)
+          begin
+            fsm_axi_bready <= 1'b0;
+            // Zero out the write buffer
+            for (int i = 0; i < 256; i = i + 1)
+              write_buffer[i] <= 32'b0;
             // Jump to the jump_state
             current_state <= jump_state;
           end
           else
-            current_state <= BUFFER_WRITE_3;
+            current_state <= BUFFER_WRITE_5;
         end
 
         S5_ROW_NOT_LAST:
