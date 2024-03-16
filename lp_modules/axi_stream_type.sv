@@ -4,10 +4,10 @@ typedef struct {
     logic valid;
     logic ready;
     logic [DATAW-1:0] data;
-} axi_stream_port;
+} axi_stream;
 
-interface axi_stream #(int DATAW = 32);
-   axi_stream_port port;
+interface axi_stream_port #(int DATAW = 32);
+   axi_stream port;
    
    logic valid = port.valid;
    logic [DATAW-1:0] data = port.data;

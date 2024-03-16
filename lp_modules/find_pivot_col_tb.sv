@@ -29,7 +29,7 @@ module find_pivot_col_tb ();
 		#(T/2) clk_tb = ~clk_tb; //so clock period is 20 time units
 	end
 	
-	axi_stream axi_stream_in();
+	axi_stream_port axi_stream_in();
 		
 	find_pivot_col DUT (.clk(clk_tb),
         .resetn(resetn_tb),

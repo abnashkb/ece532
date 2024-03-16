@@ -18,7 +18,7 @@ module find_pivot_col
 		input [COL_INDEX_SIZE-1:0] num_cols,
 		
 		//axi signals for objective row data
-		axi_stream.in axi_objrow,
+		axi_stream_port.in axi_objrow,
 		
 		//lp algo outputs
 		output reg [COL_INDEX_SIZE-1:0] pivot_col, //what width to use? depends on # of columns we have though. assume max 16384 = 2^14 so 14 bits --> round up to 16

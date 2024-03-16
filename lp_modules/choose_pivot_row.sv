@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "axi_stream_type.sv"
 
 module choose_pivot_row
     # (
@@ -8,24 +9,20 @@ module choose_pivot_row
         /*parameter IPLUS1_UPPER = 63,
         parameter IPLUS1_LOWER = 32,*/
         //only 32-bit wide axi data
-        parameter ELEMW = 32, //bit width of one tableau element (using single precision)
-        parameter DATAW = ELEMW //*2 //bit width of axi data 64 bits
+        parameter DATAW = 32 //bit width of axi data 32 bits
     )
     (
     input clk,
-	input areset,
+	input resetn,
 	
 	//tableau size
 	input [15:0] num_rows,
 	
 	//data
-	input [DATAW-1:0] axi_pivotcol_data,
-	input axi_pivotcol_valid,
-	output reg axi_pivotcol_ready,
-	
-	input [DATAW-1:0] axi_rightcol_data,
-	input axi_rightcol_valid,
-	output reg axi_rightcol_ready //TODO: add more signals including start, cont, terminate, proper outputs of computation
+    axi_stream_port.in axi_pivotcol,
+    axi_stream_port.in axi_rightcol
+    	
+	//TODO: add more signals including start, cont, terminate, proper outputs of computation
 
     );
     
@@ -45,12 +42,12 @@ module choose_pivot_row
     reg [15:0] curr_idx_a_mult3;
     reg [15:0] curr_idx_b_mult3;
     //regs for axi-data
-    reg [ELEMW-1:0] rowi_pivotcol;
-    reg [ELEMW-1:0] rowi_rightcol;
-    reg [ELEMW-1:0] rowi_pivotcol_pre;
-    reg [ELEMW-1:0] rowi_rightcol_pre;
-    //reg [ELEMW-1:0] rowiplus1_pivotcol;
-    //reg [ELEMW-1:0] rowiplus1_rightcol;
+    reg [DATAW-1:0] rowi_pivotcol;
+    reg [DATAW-1:0] rowi_rightcol;
+    reg [DATAW-1:0] rowi_pivotcol_pre;
+    reg [DATAW-1:0] rowi_rightcol_pre;
+    //reg [DATAW-1:0] rowiplus1_pivotcol;
+    //reg [DATAW-1:0] rowiplus1_rightcol;
     reg axi_pivotcol_valid_reg0;
     reg axi_rightcol_valid_reg0;
     
@@ -65,15 +62,15 @@ module choose_pivot_row
     wire s_axis_a_tready_mult3;
     wire s_axis_b_tready_mult3;
        
-    reg [ELEMW-1:0] data_a_mult0;
-    reg [ELEMW-1:0] data_b_mult0;
-    reg [ELEMW-1:0] data_a_mult1;
-    reg [ELEMW-1:0] data_b_mult1;
+    reg [DATAW-1:0] data_a_mult0;
+    reg [DATAW-1:0] data_b_mult0;
+    reg [DATAW-1:0] data_a_mult1;
+    reg [DATAW-1:0] data_b_mult1;
     //stage 2
-    reg [ELEMW-1:0] data_a_mult2;
-    reg [ELEMW-1:0] data_b_mult2;
-    reg [ELEMW-1:0] data_a_mult3;
-    reg [ELEMW-1:0] data_b_mult3;
+    reg [DATAW-1:0] data_a_mult2;
+    reg [DATAW-1:0] data_b_mult2;
+    reg [DATAW-1:0] data_a_mult3;
+    reg [DATAW-1:0] data_b_mult3;
     
     /*reg [15:0] counter_pivotcol;
     reg [15:0] counter_pivotcol_prop;
@@ -85,11 +82,11 @@ module choose_pivot_row
     
     wire m_axis_result_tvalid_mult0;   // output wire m_axis_result_tvalid
     wire m_axis_result_tready_mult0;  // input wire m_axis_result_tready
-    wire [ELEMW-1:0] m_axis_result_tdata_mult0;
+    wire [DATAW-1:0] m_axis_result_tdata_mult0;
     wire [32:0] m_axis_result_tuser_mult0; //+1 for LSB as invalid_op flag
     wire m_axis_result_tvalid_mult1;   // output wire m_axis_result_tvalid
     wire m_axis_result_tready_mult1;  // input wire m_axis_result_tready
-    wire [ELEMW-1:0] m_axis_result_tdata_mult1;
+    wire [DATAW-1:0] m_axis_result_tdata_mult1;
     wire [32:0] m_axis_result_tuser_mult1;
     wire m_axis_result_tvalid_comp0;  // output wire m_axis_result_tvalid
     wire m_axis_result_tready_comp0;  // input wire m_axis_result_tready
@@ -98,11 +95,11 @@ module choose_pivot_row
     //stage 2
     wire m_axis_result_tvalid_mult2;   // output wire m_axis_result_tvalid
     wire m_axis_result_tready_mult2;  // input wire m_axis_result_tready
-    wire [ELEMW-1:0] m_axis_result_tdata_mult2;
+    wire [DATAW-1:0] m_axis_result_tdata_mult2;
     wire [32:0] m_axis_result_tuser_mult2; //+1 for LSB as invalid_op flag
     wire m_axis_result_tvalid_mult3;   // output wire m_axis_result_tvalid
     wire m_axis_result_tready_mult3;  // input wire m_axis_result_tready
-    wire [ELEMW-1:0] m_axis_result_tdata_mult3;
+    wire [DATAW-1:0] m_axis_result_tdata_mult3;
     wire [32:0] m_axis_result_tuser_mult3;
     wire m_axis_result_tvalid_comp1;  // output wire m_axis_result_tvalid
     wire m_axis_result_tready_comp1;  // input wire m_axis_result_tready
@@ -114,67 +111,63 @@ module choose_pivot_row
     
     reg demux_sel;
     
-       
-    //putting data in reg
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
-            axi_rightcol_ready <= 1'b0;
-            rowi_pivotcol <= {ELEMW{1'b0}};
+    // PRESTAGE: Loading data from axi_pivotcol and axi_rightcol into registers
+
+    // Putting into axi_pivotcol reg
+
+    assign axi_pivotcol.ready =  resetn && (
+        ((demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1)
+        ||
+        ((demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1)
+    );
+
+    always @ (posedge clk) begin
+        if (!resetn) begin
+            rowi_pivotcol <= {DATAW{1'b0}};
             axi_pivotcol_valid_reg0 <= 1'b0;
         end
-        else if (axi_pivotcol_valid && (demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1) begin
-            axi_rightcol_ready <= 1'b1; //for sender to handshake
-            rowi_pivotcol <= axi_pivotcol_data[I_UPPER:I_LOWER];
+        else if (axi_pivotcol.valid && axi_pivotcol.ready) begin
+            rowi_pivotcol <= axi_pivotcol.data[I_UPPER:I_LOWER];
             axi_pivotcol_valid_reg0 <= 1'b1;
         end
-        else if (axi_pivotcol_valid && (demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1 ) begin
-            axi_rightcol_ready <= 1'b1; //for sender to handshake
-            rowi_pivotcol <= axi_pivotcol_data[I_UPPER:I_LOWER];
-            axi_pivotcol_valid_reg0 <= 1'b1;
-        end
-        else if (~axi_pivotcol_valid) begin
-            axi_rightcol_ready <= 1'b0; //for sender to handshake
+        else if (~axi_pivotcol.valid) begin
             rowi_pivotcol <= rowi_pivotcol;
             axi_pivotcol_valid_reg0 <= 1'b0; //axi_pivotcol_valid_reg0;
         end
         else begin
-            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_pivotcol <= rowi_pivotcol;
             axi_pivotcol_valid_reg0 <= axi_pivotcol_valid_reg0;
         end
     end
+
+    assign axi_rightcol.ready =  resetn && (
+        ((demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1)
+        ||
+        ((demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1)
+    );
     
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
-            axi_rightcol_ready <= 1'b0;
-            rowi_rightcol <= {ELEMW{1'b0}};
+    always @ (posedge clk) begin
+        if (!resetn) begin
+            rowi_rightcol <= {DATAW{1'b0}};
             axi_rightcol_valid_reg0 <= 1'b0;
         end
-        else if (axi_rightcol_valid && (demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1) begin
-            axi_rightcol_ready <= 1'b1; //for sender to handshake
-            rowi_rightcol <= axi_rightcol_data[I_UPPER:I_LOWER];
+        else if (axi_rightcol.valid && axi_rightcol.ready) begin
+            rowi_rightcol <= axi_rightcol.data[I_UPPER:I_LOWER];
             axi_rightcol_valid_reg0 <= 1'b1;
         end
-        else if (axi_rightcol_valid && (demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1 ) begin
-            axi_rightcol_ready <= 1'b1; //for sender to handshake
-            rowi_rightcol <= axi_rightcol_data[I_UPPER:I_LOWER];
-            axi_rightcol_valid_reg0 <= 1'b1;
-        end
-        else if (~axi_rightcol_valid) begin
-            axi_rightcol_ready <= 1'b0; //for sender to handshake
+        else if (~axi_rightcol.valid) begin
             rowi_rightcol <= rowi_rightcol;
             axi_rightcol_valid_reg0 <= 1'b0; //axi_rightcol_valid_reg0;
         end
         else begin
-            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_rightcol <= rowi_rightcol;
             axi_rightcol_valid_reg0 <= axi_rightcol_valid_reg0;
         end
     end
         
     //checking data
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
+    always @ (posedge clk) begin
+        if (!resetn) begin
             demux_sel <= 1'b0;
             counter <= 16'b0;
             s_axis_a_tvalid_mult0 <= 1'b0;
@@ -248,7 +241,7 @@ module choose_pivot_row
     //stage 1: instantiate multipliers
     floating_point_0 fp_mult_inst0 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(s_axis_a_tvalid_mult0),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(s_axis_a_tready_mult0),            // output wire s_axis_a_tready
       .s_axis_a_tdata(data_a_mult0),              // input wire [31 : 0] s_axis_a_tdata
@@ -264,7 +257,7 @@ module choose_pivot_row
     );
     floating_point_0 fp_mult_inst1 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(s_axis_a_tvalid_mult1),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(s_axis_a_tready_mult1),            // output wire s_axis_a_tready
       .s_axis_a_tdata(data_a_mult1),              // input wire [31 : 0] s_axis_a_tdata
@@ -280,33 +273,33 @@ module choose_pivot_row
     );
     
     //3-cycle delay for mult inputs to reach same cycle as comparator 0 output
-    reg [ELEMW-1:0] delay0_pivotcol_rowi;
-    reg [ELEMW-1:0] delay1_pivotcol_rowi;
-    reg [ELEMW-1:0] delay2_pivotcol_rowi;
-    reg [ELEMW-1:0] delay0_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] delay1_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] delay2_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] delay0_rightcol_rowi;
-    reg [ELEMW-1:0] delay1_rightcol_rowi;
-    reg [ELEMW-1:0] delay2_rightcol_rowi;
-    reg [ELEMW-1:0] delay0_rightcol_rowiplus1;
-    reg [ELEMW-1:0] delay1_rightcol_rowiplus1;
-    reg [ELEMW-1:0] delay2_rightcol_rowiplus1;
+    reg [DATAW-1:0] delay0_pivotcol_rowi;
+    reg [DATAW-1:0] delay1_pivotcol_rowi;
+    reg [DATAW-1:0] delay2_pivotcol_rowi;
+    reg [DATAW-1:0] delay0_pivotcol_rowiplus1;
+    reg [DATAW-1:0] delay1_pivotcol_rowiplus1;
+    reg [DATAW-1:0] delay2_pivotcol_rowiplus1;
+    reg [DATAW-1:0] delay0_rightcol_rowi;
+    reg [DATAW-1:0] delay1_rightcol_rowi;
+    reg [DATAW-1:0] delay2_rightcol_rowi;
+    reg [DATAW-1:0] delay0_rightcol_rowiplus1;
+    reg [DATAW-1:0] delay1_rightcol_rowiplus1;
+    reg [DATAW-1:0] delay2_rightcol_rowiplus1;
     
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
-            delay0_pivotcol_rowi <= {ELEMW{1'b0}};
-            delay1_pivotcol_rowi <= {ELEMW{1'b0}};
-            delay2_pivotcol_rowi <= {ELEMW{1'b0}};
-            delay0_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            delay1_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            delay2_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            delay0_rightcol_rowi <= {ELEMW{1'b0}};
-            delay1_rightcol_rowi <= {ELEMW{1'b0}};
-            delay2_rightcol_rowi <= {ELEMW{1'b0}};
-            delay0_rightcol_rowiplus1 <= {ELEMW{1'b0}};
-            delay1_rightcol_rowiplus1 <= {ELEMW{1'b0}};
-            delay2_rightcol_rowiplus1 <= {ELEMW{1'b0}};
+    always @ (posedge clk) begin
+        if (!resetn) begin
+            delay0_pivotcol_rowi <= {DATAW{1'b0}};
+            delay1_pivotcol_rowi <= {DATAW{1'b0}};
+            delay2_pivotcol_rowi <= {DATAW{1'b0}};
+            delay0_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            delay1_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            delay2_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            delay0_rightcol_rowi <= {DATAW{1'b0}};
+            delay1_rightcol_rowi <= {DATAW{1'b0}};
+            delay2_rightcol_rowi <= {DATAW{1'b0}};
+            delay0_rightcol_rowiplus1 <= {DATAW{1'b0}};
+            delay1_rightcol_rowiplus1 <= {DATAW{1'b0}};
+            delay2_rightcol_rowiplus1 <= {DATAW{1'b0}};
         end
         else begin
             delay0_pivotcol_rowi <= data_a_mult0; //rowi_pivotcol;
@@ -331,8 +324,8 @@ module choose_pivot_row
     reg comp_in_valid_a;
     reg comp_in_valid_b;
     
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
+    always @ (posedge clk) begin
+        if (!resetn) begin
             comp_in_valid_a <= 1'b0;
             comp_in_valid_b <= 1'b0;
         end
@@ -345,7 +338,7 @@ module choose_pivot_row
     //comparator (greater than or equal to) to select between two candidate pivot rows after cross-multiplication
         floating_point_2 comp_inst0 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(m_axis_result_tvalid_mult0), //comp_in_valid_a),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(m_axis_result_tready_mult0),            // output wire s_axis_a_tready
       .s_axis_a_tdata(m_axis_result_tdata_mult0), //32'h41200000), // input wire [31 : 0] s_axis_a_tdata
@@ -368,33 +361,33 @@ module choose_pivot_row
     assign tuser_pivotrow_comp0 = m_axis_result_tdata_comp0[0] ? m_axis_result_tuser_comp0[32:17] : m_axis_result_tuser_comp0[16:1];
     
     //stage 2: 3-cycle delay for mult inputs to reach same cycle as comparator 1 output
-    reg [ELEMW-1:0] stg2_delay0_pivotcol_rowi;
-    reg [ELEMW-1:0] stg2_delay1_pivotcol_rowi;
-    reg [ELEMW-1:0] stg2_delay2_pivotcol_rowi;
-    reg [ELEMW-1:0] stg2_delay0_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] stg2_delay1_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] stg2_delay2_pivotcol_rowiplus1;
-    reg [ELEMW-1:0] stg2_delay0_rightcol_rowi;
-    reg [ELEMW-1:0] stg2_delay1_rightcol_rowi;
-    reg [ELEMW-1:0] stg2_delay2_rightcol_rowi;
-    reg [ELEMW-1:0] stg2_delay0_rightcol_rowiplus1;
-    reg [ELEMW-1:0] stg2_delay1_rightcol_rowiplus1;
-    reg [ELEMW-1:0] stg2_delay2_rightcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay0_pivotcol_rowi;
+    reg [DATAW-1:0] stg2_delay1_pivotcol_rowi;
+    reg [DATAW-1:0] stg2_delay2_pivotcol_rowi;
+    reg [DATAW-1:0] stg2_delay0_pivotcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay1_pivotcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay2_pivotcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay0_rightcol_rowi;
+    reg [DATAW-1:0] stg2_delay1_rightcol_rowi;
+    reg [DATAW-1:0] stg2_delay2_rightcol_rowi;
+    reg [DATAW-1:0] stg2_delay0_rightcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay1_rightcol_rowiplus1;
+    reg [DATAW-1:0] stg2_delay2_rightcol_rowiplus1;
     
-    always @ (posedge clk, posedge areset) begin
-        if (areset) begin
-            stg2_delay0_pivotcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay1_pivotcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay2_pivotcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay0_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            stg2_delay1_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            stg2_delay2_pivotcol_rowiplus1 <= {ELEMW{1'b0}};
-            stg2_delay0_rightcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay1_rightcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay2_rightcol_rowi <= {ELEMW{1'b0}};
-            stg2_delay0_rightcol_rowiplus1 <= {ELEMW{1'b0}};
-            stg2_delay1_rightcol_rowiplus1 <= {ELEMW{1'b0}};
-            stg2_delay2_rightcol_rowiplus1 <= {ELEMW{1'b0}};
+    always @ (posedge clk) begin
+        if (!resetn) begin
+            stg2_delay0_pivotcol_rowi <= {DATAW{1'b0}};
+            stg2_delay1_pivotcol_rowi <= {DATAW{1'b0}};
+            stg2_delay2_pivotcol_rowi <= {DATAW{1'b0}};
+            stg2_delay0_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            stg2_delay1_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            stg2_delay2_pivotcol_rowiplus1 <= {DATAW{1'b0}};
+            stg2_delay0_rightcol_rowi <= {DATAW{1'b0}};
+            stg2_delay1_rightcol_rowi <= {DATAW{1'b0}};
+            stg2_delay2_rightcol_rowi <= {DATAW{1'b0}};
+            stg2_delay0_rightcol_rowiplus1 <= {DATAW{1'b0}};
+            stg2_delay1_rightcol_rowiplus1 <= {DATAW{1'b0}};
+            stg2_delay2_rightcol_rowiplus1 <= {DATAW{1'b0}};
         end
         else begin
             stg2_delay0_pivotcol_rowi <= data_a_mult2; //rowi_pivotcol;
@@ -416,11 +409,11 @@ module choose_pivot_row
     //assign data_a_mult2 = m_axis_result_tdata_comp0[0] ? delay2_pivotcol_rowiplus1 : delay2_pivotcol_rowi;
     //assign data_a_mult3 = m_axis_result_tdata_comp0[0] ? delay2_rightcol_rowiplus1 : delay2_rightcol_rowi;
     always @ (*) begin //use always block to support easy reset and other logic
-        if (areset) begin
-            data_a_mult2 = {ELEMW{1'b0}};
-            data_b_mult2 = {ELEMW{1'b0}};
-            data_a_mult3 = {ELEMW{1'b0}};
-            data_b_mult3 = {ELEMW{1'b0}};
+        if (!resetn) begin
+            data_a_mult2 = {DATAW{1'b0}};
+            data_b_mult2 = {DATAW{1'b0}};
+            data_a_mult3 = {DATAW{1'b0}};
+            data_b_mult3 = {DATAW{1'b0}};
             curr_idx_a_mult2 = 16'b0;
             curr_idx_b_mult2 = 16'b0;
             curr_idx_a_mult3 = 16'b0;
@@ -451,7 +444,7 @@ module choose_pivot_row
      //stage 2: instantiate multipliers
     floating_point_0 fp_mult_inst2 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(m_axis_result_tvalid_comp0 && m_axis_result_tready_comp0),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(s_axis_a_tready_mult2),            // output wire s_axis_a_tready
       .s_axis_a_tdata(data_a_mult2),              // input wire [31 : 0] s_axis_a_tdata
@@ -467,7 +460,7 @@ module choose_pivot_row
     );
     floating_point_0 fp_mult_inst3 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(m_axis_result_tvalid_comp0 && m_axis_result_tready_comp0),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(s_axis_a_tready_mult3),            // output wire s_axis_a_tready
       .s_axis_a_tdata(data_a_mult3),              // input wire [31 : 0] s_axis_a_tdata
@@ -487,7 +480,7 @@ module choose_pivot_row
     //stage 2 comparator (greater than or equal to) to select between two candidate pivot rows after cross-multiplication
         floating_point_2 comp_inst1 (
       .aclk(clk),                                  // input wire aclk
-      .aresetn(~areset),                            // input wire aresetn
+      .resetnn(resetn),                            // input wire resetnn
       .s_axis_a_tvalid(m_axis_result_tvalid_mult2), //comp_in_valid_a),            // input wire s_axis_a_tvalid
       .s_axis_a_tready(m_axis_result_tready_mult2),            // output wire s_axis_a_tready
       .s_axis_a_tdata(m_axis_result_tdata_mult2), //32'h41200000), // input wire [31 : 0] s_axis_a_tdata
@@ -505,7 +498,7 @@ module choose_pivot_row
     assign m_axis_result_tready_comp1 = 1'b1; //bc always ready for final comp output
       
     always @ (posedge clk) begin
-        if (areset) begin
+        if (!resetn) begin
             stg2_first_iteration <= 1'b1;
         end
         else if (stg2_first_iteration && m_axis_result_tvalid_comp1 && m_axis_result_tready_comp1) begin
@@ -517,7 +510,7 @@ module choose_pivot_row
     end
     
     always @ (posedge clk) begin
-        if (areset) begin
+        if (!resetn) begin
             final_comp_busy <= 1'b0;
         end
         else if (~final_comp_busy && m_axis_result_tvalid_comp0 && m_axis_result_tready_comp0) begin //starting stage 2 by pulling from comp0
