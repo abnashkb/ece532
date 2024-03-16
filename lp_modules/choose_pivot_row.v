@@ -21,11 +21,11 @@ module choose_pivot_row
 	//data
 	input [DATAW-1:0] axi_pivotcol_data,
 	input axi_pivotcol_valid,
-	output axi_pivotcol_ready,
+	output reg axi_pivotcol_ready,
 	
 	input [DATAW-1:0] axi_rightcol_data,
 	input axi_rightcol_valid,
-	output axi_rightcol_ready //TODO: add more signals including start, cont, terminate, proper outputs of computation
+	output reg axi_rightcol_ready //TODO: add more signals including start, cont, terminate, proper outputs of computation
 
     );
     
@@ -54,8 +54,6 @@ module choose_pivot_row
     reg axi_pivotcol_valid_reg0;
     reg axi_rightcol_valid_reg0;
     
-    reg axi_pivotcol_ready_reg;
-    reg axi_rightcol_ready_reg;
 
     wire s_axis_a_tready_mult0;
     wire s_axis_b_tready_mult0;
@@ -116,33 +114,31 @@ module choose_pivot_row
     
     reg demux_sel;
     
-    assign axi_pivotcol_ready = axi_pivotcol_ready_reg;
-    assign axi_rightcol_ready = axi_rightcol_ready_reg;
        
     //putting data in reg
     always @ (posedge clk, posedge areset) begin
         if (areset) begin
-            axi_pivotcol_ready_reg <= 1'b0;
+            axi_rightcol_ready <= 1'b0;
             rowi_pivotcol <= {ELEMW{1'b0}};
             axi_pivotcol_valid_reg0 <= 1'b0;
         end
         else if (axi_pivotcol_valid && (demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1) begin
-            axi_pivotcol_ready_reg <= 1'b1; //for sender to handshake
+            axi_rightcol_ready <= 1'b1; //for sender to handshake
             rowi_pivotcol <= axi_pivotcol_data[I_UPPER:I_LOWER];
             axi_pivotcol_valid_reg0 <= 1'b1;
         end
         else if (axi_pivotcol_valid && (demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1 ) begin
-            axi_pivotcol_ready_reg <= 1'b1; //for sender to handshake
+            axi_rightcol_ready <= 1'b1; //for sender to handshake
             rowi_pivotcol <= axi_pivotcol_data[I_UPPER:I_LOWER];
             axi_pivotcol_valid_reg0 <= 1'b1;
         end
         else if (~axi_pivotcol_valid) begin
-            axi_pivotcol_ready_reg <= 1'b0; //for sender to handshake
+            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_pivotcol <= rowi_pivotcol;
             axi_pivotcol_valid_reg0 <= 1'b0; //axi_pivotcol_valid_reg0;
         end
         else begin
-            axi_pivotcol_ready_reg <= 1'b0; //for sender to handshake
+            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_pivotcol <= rowi_pivotcol;
             axi_pivotcol_valid_reg0 <= axi_pivotcol_valid_reg0;
         end
@@ -150,27 +146,27 @@ module choose_pivot_row
     
     always @ (posedge clk, posedge areset) begin
         if (areset) begin
-            axi_rightcol_ready_reg <= 1'b0;
+            axi_rightcol_ready <= 1'b0;
             rowi_rightcol <= {ELEMW{1'b0}};
             axi_rightcol_valid_reg0 <= 1'b0;
         end
         else if (axi_rightcol_valid && (demux_sel == 1'b0) && s_axis_a_tready_mult0 && s_axis_a_tready_mult1) begin
-            axi_rightcol_ready_reg <= 1'b1; //for sender to handshake
+            axi_rightcol_ready <= 1'b1; //for sender to handshake
             rowi_rightcol <= axi_rightcol_data[I_UPPER:I_LOWER];
             axi_rightcol_valid_reg0 <= 1'b1;
         end
         else if (axi_rightcol_valid && (demux_sel == 1'b1) && s_axis_b_tready_mult0 && s_axis_b_tready_mult1 ) begin
-            axi_rightcol_ready_reg <= 1'b1; //for sender to handshake
+            axi_rightcol_ready <= 1'b1; //for sender to handshake
             rowi_rightcol <= axi_rightcol_data[I_UPPER:I_LOWER];
             axi_rightcol_valid_reg0 <= 1'b1;
         end
         else if (~axi_rightcol_valid) begin
-            axi_rightcol_ready_reg <= 1'b0; //for sender to handshake
+            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_rightcol <= rowi_rightcol;
             axi_rightcol_valid_reg0 <= 1'b0; //axi_rightcol_valid_reg0;
         end
         else begin
-            axi_rightcol_ready_reg <= 1'b0; //for sender to handshake
+            axi_rightcol_ready <= 1'b0; //for sender to handshake
             rowi_rightcol <= rowi_rightcol;
             axi_rightcol_valid_reg0 <= axi_rightcol_valid_reg0;
         end
