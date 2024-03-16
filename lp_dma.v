@@ -12,6 +12,7 @@ module lp_dma(
     // Inputs
     input aclk,
     input aresetn,
+    input rst_busy,
     input [31:0] ddr_base_addr,
     input [31:0] bram_base_addr,
     input [15:0] stride,
@@ -178,6 +179,12 @@ module lp_dma(
       fsm_axi_bready <= 1'b0;
     end
 
+    // If BRAM is resetting, wait in the current state.
+    else if (rst_busy)
+    begin
+      current_state <= current_state;
+    end
+
     // FSM Code
     else
     begin
@@ -304,6 +311,8 @@ module lp_dma(
             current_state <= (fsm_axi_wlast) ? BUFFER_WRITE_3 : BUFFER_WRITE_5;
             fsm_axi_wvalid <= 1'b0;
             fsm_axi_wlast <= 1'b0;
+            // Zero out the write buffer as we read from it
+            write_buffer[burst_element_counter] <= 32'b0;
             // Increment write and burst counters
             write_element_counter <= write_element_counter + 1'b1;
             burst_element_counter <= burst_element_counter + 1'b1;
@@ -318,9 +327,6 @@ module lp_dma(
           if (BRAM_M_AXI_BVALID == 1'b1)
           begin
             fsm_axi_bready <= 1'b0;
-            // Zero out the write buffer
-            for (int i = 0; i < 256; i = i + 1)
-              write_buffer[i] <= 32'b0;
             // Jump to the jump_state
             current_state <= jump_state;
           end
