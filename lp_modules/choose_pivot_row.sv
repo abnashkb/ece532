@@ -20,6 +20,7 @@ module choose_pivot_row
 	
 	//result of module
 	output reg [NUM_ROWS_W-1:0] pivot_row_index,
+	output reg [DATAW-1:0] pivot_col_pivot_row_data,
 	
 	//outputs to fsm
 	output reg terminate,
@@ -30,12 +31,10 @@ module choose_pivot_row
 	reg [NUM_ROWS_W-1:0] counter_a;	//two sep counters to allow for misalignment in incoming data arrival
 	reg [NUM_ROWS_W-1:0] counter_b;
 	reg [DATAW-1:0] best_ratio;
-	//reg [NUM_ROWS_W-1:0] best_index;
-	//reg [DATAW-1:0] curr_ratio;
 	wire div_ratio_test_OUT_tvalid;
 	wire div_ratio_test_OUT_tready;
 	wire [DATAW-1:0] div_ratio_test_OUT_tdata;
-	wire [(NUM_ROWS_W*2)+4-1:0] div_ratio_test_OUT_tuser; //+4 bc using 4 error bits: underflow, overflow, invalid op, and divide by zero
+	wire [67:0] div_ratio_test_OUT_tuser; //4 LSB for 4 error bits: underflow, overflow, invalid op, and divide by zero
 	wire divaready, divbready;
 	
 	//no longer need to manually check data in pre-stage. easier to avoid dropping data to preserve counter.
@@ -70,11 +69,11 @@ module choose_pivot_row
 	  .s_axis_b_tvalid(axi_pivotcol.valid),            // input wire s_axis_b_tvalid
 	  .s_axis_b_tready(divbready),            // output wire s_axis_b_tready
 	  .s_axis_b_tdata(axi_pivotcol.data),              // input wire [31 : 0] s_axis_b_tdata
-	  .s_axis_b_tuser(counter_b),              // input wire [15 : 0] s_axis_b_tuser
+	  .s_axis_b_tuser({axi_pivotcol.data, counter_b}),              // input wire [47 : 0] s_axis_b_tuser
 	  .m_axis_result_tvalid(div_ratio_test_OUT_tvalid),  // output wire m_axis_result_tvalid
 	  .m_axis_result_tready(div_ratio_test_OUT_tready),  // input wire m_axis_result_tready
 	  .m_axis_result_tdata(div_ratio_test_OUT_tdata),    // output wire [31 : 0] m_axis_result_tdata
-	  .m_axis_result_tuser(div_ratio_test_OUT_tuser)    // output wire [35 : 0] m_axis_result_tuser
+	  .m_axis_result_tuser(div_ratio_test_OUT_tuser)    // output wire [67 : 0] m_axis_result_tuser
 	);
 	
 	assign div_ratio_test_OUT_tready = 1'b1;
@@ -90,6 +89,7 @@ module choose_pivot_row
 			terminate <= 1'b0;
 			cont <= 1'b0;
 			ratio_updated <= 1'b0;
+			pivot_col_pivot_row_data <= 32'b0;
 		end
 		else if (div_ratio_test_OUT_tvalid && div_ratio_test_OUT_tready && ~cont && ~terminate) begin
 			if (
@@ -103,6 +103,7 @@ module choose_pivot_row
 			else if ((~div_ratio_test_OUT_tdata[DATAW-1] || (div_ratio_test_OUT_tdata[DATAW-2:0] == 0)) && (div_ratio_test_OUT_tdata < best_ratio)) begin 
 				//MSB should be 0 to show positive ratio, or rest must be all zero (bc could have -0 in IEEE754)
 				best_ratio <= div_ratio_test_OUT_tdata;
+				pivot_col_pivot_row_data <= div_ratio_test_OUT_tuser[67:36]; //upper 32 bits are pivotcol data
 				ratio_updated <= 1'b1;
 				pivot_row_index <= div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4];
 				if (div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows) begin //if this was last row AND it had new best ratio

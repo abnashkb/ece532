@@ -11,6 +11,7 @@ module choose_pivot_row_tb ();
     axi_stream_port axi_rightcol_tb();
 	axi_stream_port axi_pivotcol_tb();
 	wire [NUM_ROWS_W-1:0] pivot_row_index_tb;
+	wire [DATAW-1:0] pivot_col_pivot_row_data_tb;
 	wire terminate_tb;
 	wire cont_tb;
 	
@@ -22,6 +23,7 @@ module choose_pivot_row_tb ();
 	.axi_rightcol(axi_rightcol_tb),
 	.axi_pivotcol(axi_pivotcol_tb),
 	.pivot_row_index(pivot_row_index_tb),
+	.pivot_col_pivot_row_data(pivot_col_pivot_row_data_tb),
 	.terminate(terminate_tb),
 	.cont(cont_tb)
     );
