@@ -17,11 +17,10 @@ module update_pivot_row_tb ();
 	reg [DATAW-1:0] axi_pivotrowIN_data_tb;
 	reg axi_pivotrowIN_valid_tb;
 	wire axi_pivotrowIN_ready_tb;
-	//axi writing out signals with results
-	wire [DATAW-1:0] axi_pivotrowOUT_data_tb;
-	wire axi_pivotrowOUT_valid_tb;
-	reg axi_pivotrowOUT_ready_tb;
-	
+    //updated pivot row outputs for native axi bram
+	wire wen;
+	wire [DATAW-1:0] wdata; //directly assigned to divider output
+	wire [15:0] widx;
 	
 	//instantiate module    
     update_pivot_row inst0
@@ -36,13 +35,13 @@ module update_pivot_row_tb ();
 	//data from prev stage of lp
 	.factor_in(factor_in_tb), //elem in pivot row and pivot col
 	//axi data in signals
-	.axi_pivotrowIN_data(axi_pivotrowIN_data_tb),
-	.axi_pivotrowIN_valid(axi_pivotrowIN_valid_tb),
-	.axi_pivotrowIN_ready(axi_pivotrowIN_ready_tb),
+	.S_AXIS_PIVOTROW_TDATA(axi_pivotrowIN_data_tb),
+	.S_AXIS_PIVOTROW_TVALID(axi_pivotrowIN_valid_tb),
+	.S_AXIS_PIVOTROW_TREADY(axi_pivotrowIN_ready_tb),
 	//axi writing out signals with results
-	.axi_pivotrowOUT_data(axi_pivotrowOUT_data_tb),
-	.axi_pivotrowOUT_valid(axi_pivotrowOUT_valid_tb),
-	.axi_pivotrowOUT_ready(axi_pivotrowOUT_ready_tb)
+	.wdata(wdata),
+	.wen(wen),
+	.widx(widx)
 
     );
             
@@ -62,14 +61,14 @@ module update_pivot_row_tb ();
         factor_in_tb = 32'b0; //32'b01000000001000000000000000000000;
         axi_pivotrowIN_data_tb = 32'b0;
         axi_pivotrowIN_valid_tb = 1'b0;
-        axi_pivotrowOUT_ready_tb = 1'b0;
+        //axi_pivotrowOUT_ready_tb = 1'b0;
         #(T*2); //MUST RESET FOR 2 CYCLES
         
         //done reset
         resetn_tb = 1'b1;
         num_cols_tb = 16'h4;
         factor_in_tb = 32'b01000000000000000000000000000000; //2
-        axi_pivotrowOUT_ready_tb = 1'b1;
+        //axi_pivotrowOUT_ready_tb = 1'b1;
         #(T*1.5); //extra 0.5 cycle for next test case data to arrive before rising edge
         
         //test case 0: 4 DIV 2 = 2

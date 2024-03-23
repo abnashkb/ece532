@@ -23,20 +23,24 @@ module update_pivot_row
 	input S_AXIS_PIVOTROW_TVALID,
 	output S_AXIS_PIVOTROW_TREADY,
 	
-	//axi writing out signals with results
-	output [DATAW-1:0] M_AXIS_PIVOTROW_TDATA, //this may continue changing after cont/term set, which is allowed bc valid will be low
+	//axi writing out signals with results -- no longer using this
+	/*output [DATAW-1:0] M_AXIS_PIVOTROW_TDATA, //this may continue changing after cont/term set, which is allowed bc valid will be low
 	output M_AXIS_PIVOTROW_TVALID,
-	input M_AXIS_PIVOTROW_TREADY,
+	input M_AXIS_PIVOTROW_TREADY,*/
 	
 	//native BRAM output signals
 	output wen,
-	output [DATAW-1:0] wdata,
+	output [DATAW-1:0] wdata, //directly assigned to divider output
 	output reg [15:0] widx
 	
     );
         
     //store incoming factor into register in case it changes after module has started -- should not happen though
     //reg [DATAW-1:0] factor;
+    
+    //keeping to assign to BRAM output signals
+	wire M_AXIS_PIVOTROW_TVALID;
+	wire M_AXIS_PIVOTROW_TREADY = 1'b1; //set to always ready because using bram 
         
     wire S_AXIS_PIVOTROW_TREADY_div0_a;
     wire S_AXIS_PIVOTROW_TREADY_div0_b;
@@ -72,7 +76,7 @@ module update_pivot_row
       .s_axis_b_tdata(factor_in),              // input wire [31 : 0] s_axis_b_tdata
       .m_axis_result_tvalid(m_axis_result_tvalid_div0),  // output wire m_axis_result_tvalid
       .m_axis_result_tready(M_AXIS_PIVOTROW_TREADY),  // input wire m_axis_result_tready
-      .m_axis_result_tdata(M_AXIS_PIVOTROW_TDATA),    // output wire [31 : 0] m_axis_result_tdata
+      .m_axis_result_tdata(wdata),    // output wire [31 : 0] m_axis_result_tdata
       .m_axis_result_tuser(m_axis_result_tuser)    // output wire [19 : 0] m_axis_result_tuser
     );
         
@@ -118,6 +122,5 @@ module update_pivot_row
 	
 	//BRAM output signals
 	assign wen = M_AXIS_PIVOTROW_TVALID;
-	assign wdata = M_AXIS_PIVOTROW_TDATA;
 	    
 endmodule
