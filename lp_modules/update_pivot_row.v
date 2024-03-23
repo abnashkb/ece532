@@ -26,10 +26,15 @@ module update_pivot_row
 	//axi writing out signals with results
 	output [DATAW-1:0] axi_pivotrowOUT_data, //this may continue changing after cont/term set, which is allowed bc valid will be low
 	output axi_pivotrowOUT_valid,
-	input axi_pivotrowOUT_ready
-
+	input axi_pivotrowOUT_ready,
+	
+	//native BRAM output signals
+	output wen,
+	output [DATAW-1:0] wdata,
+	output reg [17:0] waddr //4 bytes per element, 2^16 max elems in pivot row, so 2^18 -- 18 bits
+	
     );
-    
+        
     //store incoming factor into register in case it changes after module has started -- should not happen though
     //reg [DATAW-1:0] factor;
         
@@ -100,5 +105,19 @@ module update_pivot_row
 	       cont_delayed <= cont;
 	   end
 	end*/
-    
+	
+	//BRAM write addressing
+	always @ (posedge clk) begin
+	   if (~resetn) begin
+	       waddr <= 0;
+	   end
+	   else if (axi_pivotrowOUT_valid) begin
+	       waddr <= waddr + 4; //write next 4 bytes
+	   end
+	end
+	
+	//BRAM output signals
+	assign wen = axi_pivotrowOUT_valid;
+	assign wdata = axi_pivotrowOUT_data;
+	    
 endmodule
