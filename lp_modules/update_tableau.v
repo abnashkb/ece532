@@ -25,14 +25,48 @@ module update_tableau(
     // Tracks position in tableau
     reg [15:0] row_index;
     reg [15:0] col_index;
-
+    
+    // The value of the pivot column for the current row. is_nan flag is true when the value is unset.
+    reg [31:0] cur_pivot_col_val;
+    reg curr_pivot_col_val_is_nan;
+    
+    wire s_axis_a_ready;
+    wire s_axis_b_ready;
+    wire s_axis_c_ready;
+    wire [2:0] m_axis_result_tflags;
+    wire s_axis_all_ready = s_axis_a_ready && s_axis_b_ready && s_axis_c_ready; 
+    
+    // Create cont
+    always @(posedge clk) begin
+        if (!resetn) cont <= 0;
+        else if (row_index == num_rows) cont <= 1;
+    end
+    
+    // Create terminate
+    always @(posedge clk) begin
+        if (!resetn) terminate <= 0;
+        else if (m_axis_result_tflags[0] || m_axis_result_tflags[1] || m_axis_result_tflags[2]) terminate <= 1;
+    end
+    
+    // Ensures data (s_axis_pivot_row_tdata) is always synced with our col_index;
     assign s_axis_pivot_row_address = col_index;
+
+    
+    wire ready_to_increment = resetn 
+            && s_axis_all_ready
+            && s_axis_tableau_tvalid
+            && (col_index != num_cols) 
+            && (row_index != num_rows) 
+            && (!curr_pivot_col_val_is_nan)
+            && !terminate
+            && !cont;
+    assign s_axis_tableau_tready = ready_to_increment;
+    assign s_axis_pivot_row_tready = ready_to_increment;
 
     // Handles wrapping around to next row when we reach the end of a row (not this introduces a cycle delay)
     always @(posedge clk) begin
         if (!resetn) begin
             row_index <= 0;
-            cont <= 0;
             col_index <= 0;
         end
         else if (ready_to_increment) begin
@@ -46,8 +80,7 @@ module update_tableau(
 
     // Accept a new pivot_column value whenever we reach the end of a row and we're ready. 
     // We use combinational axi_logic (which is technically illegal).
-    reg [31:0] cur_pivot_col_val;
-    reg curr_pivot_col_val_is_nan;
+
     assign s_axis_pivot_column_tready = resetn && (col_index == num_cols || curr_pivot_col_val_is_nan);
     always @(posedge clk) begin
         if (!resetn) begin
@@ -64,30 +97,11 @@ module update_tableau(
         end
     end
 
-    assign output cont = row_index == num_rows;
-
-    assign wire ready_to_increment = resetn 
-            && s_axis_all_ready
-            && s_axis_pivot_row_tvalid
-            && s_axis_tableau_tvalid
-            && (col_index != num_cols) 
-            && (row_index != num_rows) 
-            && (!curr_pivot_col_val_is_nan)
-            && !terminate
-            && !cont;
-    assign s_axis_tableau_tready = ready_to_increment;
-    assign s_axis_pivot_row_tready = ready_to_increment;
-
-    wire s_axis_a_ready;
-    wire s_axis_b_ready;
-    wire s_axis_c_ready;
-    wire m_axis_result_tflags;
-    assign wire s_axis_all_ready = s_axis_a_ready && s_axis_b_ready && s_axis_c_ready; 
     floating_point_subtract_multiply fp_unit (
         .m_axis_result_tdata(m_axis_result),
         .m_axis_result_tvalid(m_axis_result_tvalid),
         .m_axis_result_tready(m_axis_result_tready),
-        .m_axis_result_tflags(m_axis_result_tflags)
+        .m_axis_result_tflags(m_axis_result_tflags),
         .s_axis_a_tdata(s_axis_pivot_row_tdata),
         .s_axis_a_tvalid(ready_to_increment),
         .s_axis_a_tready(s_axis_a_ready),
@@ -100,13 +114,4 @@ module update_tableau(
         .aclk(clk),
         .aresetn(resetn)
     );
-
-    always @(posedge clk) begin
-        if (!resetn) begin
-            terminate <= 0;
-        end
-        else if (m_axis_result_tflags[0] || m_axis_result_tflags[1] || m_axis_result_tflags[2]) begin
-            terminate <= 1;
-        end
-    end
 endmodule
