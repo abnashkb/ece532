@@ -6,21 +6,21 @@ module floating_point_subtract_multiply_tb;
   parameter CLK_PERIOD = 10; // Clock period in ns
   
   // Inputs and outputs
-  wire [31:0] M_AXIS_RESULT_tdata;
-  reg M_AXIS_RESULT_tready;
-  wire [15:0]M_AXIS_RESULT_tuser;
-  wire [2:0] M_AXIS_RESULT_tflags;
-  wire M_AXIS_RESULT_tvalid;
-  reg [31:0] S_AXIS_A_tdata;
-  wire S_AXIS_A_tready;
-  reg [15:0]S_AXIS_A_tuser;
-  reg S_AXIS_A_tvalid;
-  reg [31:0] S_AXIS_B_tdata;
-  wire S_AXIS_B_tready;
-  reg S_AXIS_B_tvalid;
-  reg [31:0] S_AXIS_C_tdata;
-  wire S_AXIS_C_tready;
-  reg S_AXIS_C_tvalid;
+  wire [31:0] m_axis_result_tdata;
+  reg m_axis_result_tready;
+  wire [15:0]m_axis_result_tuser;
+  wire [2:0] m_axis_result_tflags;
+  wire m_axis_result_tvalid;
+  reg [31:0] s_axis_a_tdata;
+  wire s_axis_a_tready;
+  reg [15:0]s_axis_a_tuser;
+  reg s_axis_a_tvalid;
+  reg [31:0] s_axis_b_tdata;
+  wire s_axis_b_tready;
+  reg s_axis_b_tvalid;
+  reg [31:0] s_axis_c_tdata;
+  wire s_axis_c_tready;
+  reg s_axis_c_tvalid;
   reg aresetn;
   
 
@@ -34,21 +34,21 @@ module floating_point_subtract_multiply_tb;
 
   // Instantiate the Design Under Test (DUT)
   floating_point_subtract_multiply DUT (
-    .M_AXIS_RESULT_tdata(M_AXIS_RESULT_tdata),
-    .M_AXIS_RESULT_tready(M_AXIS_RESULT_tready),
-    .M_AXIS_RESULT_tuser(M_AXIS_RESULT_tuser),
-    .M_AXIS_RESULT_tflags(M_AXIS_RESULT_tflags),
-    .M_AXIS_RESULT_tvalid(M_AXIS_RESULT_tvalid),
-    .S_AXIS_A_tdata(S_AXIS_A_tdata),
-    .S_AXIS_A_tready(S_AXIS_A_tready),
-    .S_AXIS_A_tuser(S_AXIS_A_tuser),
-    .S_AXIS_A_tvalid(S_AXIS_A_tvalid),
-    .S_AXIS_B_tdata(S_AXIS_B_tdata),
-    .S_AXIS_B_tready(S_AXIS_B_tready),
-    .S_AXIS_B_tvalid(S_AXIS_B_tvalid),
-    .S_AXIS_C_tdata(S_AXIS_C_tdata),
-    .S_AXIS_C_tready(S_AXIS_C_tready),
-    .S_AXIS_C_tvalid(S_AXIS_C_tvalid),
+    .m_axis_result_tdata(m_axis_result_tdata),
+    .m_axis_result_tready(m_axis_result_tready),
+    .m_axis_result_tuser(m_axis_result_tuser),
+    .m_axis_result_tflags(m_axis_result_tflags),
+    .m_axis_result_tvalid(m_axis_result_tvalid),
+    .s_axis_a_tdata(s_axis_a_tdata),
+    .s_axis_a_tready(s_axis_a_tready),
+    .s_axis_a_tuser(s_axis_a_tuser),
+    .s_axis_a_tvalid(s_axis_a_tvalid),
+    .s_axis_b_tdata(s_axis_b_tdata),
+    .s_axis_b_tready(s_axis_b_tready),
+    .s_axis_b_tvalid(s_axis_b_tvalid),
+    .s_axis_c_tdata(s_axis_c_tdata),
+    .s_axis_c_tready(s_axis_c_tready),
+    .s_axis_c_tvalid(s_axis_c_tvalid),
     .aclk(aclk),
     .aresetn(aresetn)
   );
@@ -58,13 +58,13 @@ module floating_point_subtract_multiply_tb;
     $display("Starting Design Under Test (DUT) testbench");
     
     aresetn = 0;
-    S_AXIS_A_tvalid = 0 ; 
-    S_AXIS_B_tvalid = 0 ;
-    S_AXIS_C_tvalid = 0 ;
-    S_AXIS_A_tdata = 0;
-    S_AXIS_B_tdata = 0;
-    S_AXIS_C_tdata = 0;
-      S_AXIS_A_tuser = 0;
+    s_axis_a_tvalid = 0 ; 
+    s_axis_b_tvalid = 0 ;
+    s_axis_c_tvalid = 0 ;
+    s_axis_a_tdata = 0;
+    s_axis_b_tdata = 0;
+    s_axis_c_tdata = 0;
+      s_axis_a_tuser = 0;
     
     
     # (CLK_PERIOD * 3)
@@ -75,58 +75,58 @@ module floating_point_subtract_multiply_tb;
 
     // Test cases
     repeat (3) begin
-        S_AXIS_A_tvalid = 0 ; 
-        S_AXIS_B_tvalid = 0 ;
-        S_AXIS_C_tvalid = 0 ;
-        M_AXIS_RESULT_tready = 0;
+        s_axis_a_tvalid = 0 ; 
+        s_axis_b_tvalid = 0 ;
+        s_axis_c_tvalid = 0 ;
+        m_axis_result_tready = 0;
       # (3 * CLK_PERIOD)
       // Generate random inputs
-      S_AXIS_A_tdata = $random;
-      S_AXIS_B_tdata = $random;
-      S_AXIS_C_tdata = $random;
+      s_axis_a_tdata = $random;
+      s_axis_b_tdata = $random;
+      s_axis_c_tdata = $random;
       // Generate random tuser values
-      S_AXIS_A_tuser = $random;
+      s_axis_a_tuser = $random;
       
       // Drive tvalid for input streams
-      S_AXIS_A_tvalid = 1;
-      S_AXIS_B_tvalid = 1;
-      S_AXIS_C_tvalid = 1;
+      s_axis_a_tvalid = 1;
+      s_axis_b_tvalid = 1;
+      s_axis_c_tvalid = 1;
 
 
 
       
 
       // Display inputs
-      $display("Input: A = %h, B = %h, C = %h", S_AXIS_A_tdata, S_AXIS_B_tdata, S_AXIS_C_tdata);
+      $display("Input: A = %h, B = %h, C = %h", s_axis_a_tdata, s_axis_b_tdata, s_axis_c_tdata);
       
       // Wait for valid output
-      while (S_AXIS_A_tready == 0) begin
+      while (s_axis_a_tready == 0) begin
         #1;
       end
       
       # CLK_PERIOD
       
-      S_AXIS_A_tvalid = 0 ; 
-      S_AXIS_B_tvalid = 0 ;
-      S_AXIS_C_tvalid = 0 ;
+      s_axis_a_tvalid = 0 ; 
+      s_axis_b_tvalid = 0 ;
+      s_axis_c_tvalid = 0 ;
 
       // Wait for valid output
-      while (M_AXIS_RESULT_tvalid == 0) begin
+      while (m_axis_result_tvalid == 0) begin
         #1;
       end
       
       # CLK_PERIOD
       
       // Drive tready for output stream
-      M_AXIS_RESULT_tready = 1;
+      m_axis_result_tready = 1;
       
       # CLK_PERIOD
       
       // Display output
-      $display("Output: C - AB = %h", M_AXIS_RESULT_tdata);
+      $display("Output: C - AB = %h", m_axis_result_tdata);
       
       // Wait for valid output
-      while (M_AXIS_RESULT_tvalid == 1) begin
+      while (m_axis_result_tvalid == 1) begin
         #1;
       end
 
