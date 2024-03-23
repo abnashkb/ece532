@@ -93,12 +93,22 @@ module choose_pivot_row
 		end
 		else if (div_ratio_test_OUT_tvalid && div_ratio_test_OUT_tready && ~cont && ~terminate) begin
 			if (
-				(div_ratio_test_OUT_tuser[0] || div_ratio_test_OUT_tuser[1] || div_ratio_test_OUT_tuser[2] || div_ratio_test_OUT_tuser[3]) //division error occurred
+				(div_ratio_test_OUT_tuser[0] || div_ratio_test_OUT_tuser[1] || div_ratio_test_OUT_tuser[2]) //division error occurred, except handle div by zero separately
 				||
 				((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows) && ~ratio_updated) //reached last value and best_ratio is unchanged
 				) begin
 				terminate <= 1'b1; //tell fsm to terminate the lp problem
 				//cont <= 1'b0; //implied
+			end
+			else if (div_ratio_test_OUT_tuser[3]) begin
+			     //divided by infinity so skip this row -- do not throw terminate
+			     if (div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows && ratio_updated) begin //if this was last row, do not update algo updates but proceed to next stage
+					//terminate <= 1'b0; //implied
+					cont <= 1'b1; //tell fsm to continue onto next lp module
+				end
+				else begin //div by zero in last row so skip, but no valid pivot row found earlier
+				    terminate <= 1'b1; //tell fsm to terminate the lp problem
+				end
 			end
 			else if ((~div_ratio_test_OUT_tdata[DATAW-1] || (div_ratio_test_OUT_tdata[DATAW-2:0] == 0)) && (div_ratio_test_OUT_tdata < best_ratio)) begin 
 				//MSB should be 0 to show positive ratio, or rest must be all zero (bc could have -0 in IEEE754)
