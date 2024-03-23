@@ -47,7 +47,7 @@ module choose_pivot_row_tb ();
 		
 		//bring reset back up
 		resetn_tb = 1'b1;
-		num_rows_tb = 16'h3;
+		num_rows_tb = 16'h4;
 		#(T*1.5);
 		
 		
@@ -98,7 +98,7 @@ module choose_pivot_row_tb ();
 		wait (axi_pivotcol_tb.ready && clk_tb);
 		#T;
 		
-		//test case 5: 5/0 -- will never get accepted because my num_rows_tb is at 3
+		//test case 5: 5/0 -- expect this to cont bc just skip row if div by zero
 		//wait (axi_rightcol_tb.ready && axi_pivotcol_tb.ready && clk_tb);
 		axi_rightcol_tb.data = 32'h40a00000;
 		axi_rightcol_tb.valid = 1'b1;
