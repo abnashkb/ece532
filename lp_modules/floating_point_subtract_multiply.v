@@ -15,12 +15,10 @@
 module floating_point_subtract_multiply
    (output [31:0] m_axis_result_tdata,
     input m_axis_result_tready,
-    output [15:0] m_axis_result_tuser,
     output [2:0] m_axis_result_tflags,
     output m_axis_result_tvalid,
     input [31:0] s_axis_a_tdata,
     output s_axis_a_tready,
-    input [15:0] s_axis_a_tuser,
     input s_axis_a_tvalid,
     input [31:0] s_axis_b_tdata,
     output s_axis_b_tready,
@@ -32,22 +30,18 @@ module floating_point_subtract_multiply
     input aresetn);
   
   wire [31:0] result;
-  wire [18:0] tuser;
   
   
   assign m_axis_result_tdata[31] = ~result[31];
   assign m_axis_result_tdata[30:0] = result[30:0];
-  assign m_axis_result_tflags = tuser[2:0];
-  assign m_axis_result_tuser = tuser[18:3];
 
   floating_point_multiply_subtract fp_unit
        (.m_axis_result_tdata(result),
         .m_axis_result_tready(m_axis_result_tready),
-        .m_axis_result_tuser(tuser),
+        .m_axis_result_tuser(m_axis_result_tflags),
         .m_axis_result_tvalid(m_axis_result_tvalid),
         .s_axis_a_tdata(s_axis_a_tdata),
         .s_axis_a_tready(s_axis_a_tready),
-        .s_axis_a_tuser(s_axis_a_tuser),
         .s_axis_a_tvalid(s_axis_a_tvalid),
         .s_axis_b_tdata(s_axis_b_tdata),
         .s_axis_b_tready(s_axis_b_tready),

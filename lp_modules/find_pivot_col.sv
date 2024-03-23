@@ -48,7 +48,6 @@ module find_pivot_col
 			end
 		end
 		else begin
-		    
 			if (axi_objrow.valid && axi_objrow.ready) begin
 				curr_col <= curr_col + 1;
 				if (axi_objrow.data[30:23] == 8'b11111111) begin // It's infinity or NaN
