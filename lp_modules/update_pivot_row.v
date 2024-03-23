@@ -31,7 +31,7 @@ module update_pivot_row
 	//native BRAM output signals
 	output wen,
 	output [DATAW-1:0] wdata,
-	output reg [17:0] waddr //4 bytes per element, 2^16 max elems in pivot row, so 2^18 -- 18 bits
+	output reg [15:0] widx
 	
     );
         
@@ -109,10 +109,10 @@ module update_pivot_row
 	//BRAM write addressing
 	always @ (posedge clk) begin
 	   if (~resetn) begin
-	       waddr <= 0;
+	       widx <= 0;
 	   end
 	   else if (axi_pivotrowOUT_valid) begin
-	       waddr <= waddr + 4; //write next 4 bytes
+	       widx <= widx + 1; //write next 4 bytes, just need to supply index
 	   end
 	end
 	
