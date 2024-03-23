@@ -89,7 +89,7 @@ module update_pivot_row
 		      terminate <= 1'b1;
 		  end
 		  //check for last value
-		  else if (m_axis_result_tuser[19:4] == num_cols) begin 
+		  else if (m_axis_result_tuser[19:4] == num_cols-1) begin 
 		      cont <= 1'b1;
 		  end
 	   end //else: latch
