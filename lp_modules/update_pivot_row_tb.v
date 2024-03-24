@@ -20,7 +20,7 @@ module update_pivot_row_tb ();
     //updated pivot row outputs for native axi bram
 	wire wen;
 	wire [DATAW-1:0] wdata; //directly assigned to divider output
-	wire [15:0] widx;
+	wire [15:0] waddr;
 	
 	//instantiate module    
     update_pivot_row inst0
@@ -41,7 +41,7 @@ module update_pivot_row_tb ();
 	//axi writing out signals with results
 	.wdata(wdata),
 	.wen(wen),
-	.widx(widx)
+	.waddr(waddr)
 
     );
             

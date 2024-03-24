@@ -31,12 +31,9 @@ module update_pivot_row
 	//native BRAM output signals
 	output wen,
 	output [DATAW-1:0] wdata, //directly assigned to divider output
-	output reg [15:0] widx
+	output reg [15:0] waddr
 	
     );
-        
-    //store incoming factor into register in case it changes after module has started -- should not happen though
-    //reg [DATAW-1:0] factor;
     
     //keeping to assign to BRAM output signals
 	wire M_AXIS_PIVOTROW_TVALID;
@@ -54,6 +51,12 @@ module update_pivot_row
                                    && ~m_axis_result_tuser[0] && ~m_axis_result_tuser[1] 
                                    && ~m_axis_result_tuser[2] && ~m_axis_result_tuser[3] //check no error bits set
                                    && resetn && ~terminate && ~cont; //&& ~cont_delayed;
+                                   
+                                   
+    //BRAM output signals
+	assign wen = M_AXIS_PIVOTROW_TVALID;
+	
+	//data input counter
     reg [15:0] input_counter; 
     always @ (posedge clk) begin
         if (~resetn) begin
@@ -63,7 +66,8 @@ module update_pivot_row
             input_counter <= input_counter + 1;
         end //else: implied latch   
     end
-        
+    
+    //instantiate divider    
     floating_point_1 fp_div_inst0 (
       .aclk(clk),                                  // input wire aclk
       .aresetn(resetn),                            // input wire aresetn
@@ -99,28 +103,14 @@ module update_pivot_row
 	   end //else: latch
 	end
 	
-	//valid signal
-	/*always @ (posedge clk) begin
-	   if (~resetn) begin
-	       cont_delayed <= 1'b0;
-	   end
-	   //check if cont is high
-	   else begin
-	       cont_delayed <= cont;
-	   end
-	end*/
-	
 	//BRAM write addressing
 	always @ (posedge clk) begin
 	   if (~resetn) begin
-	       widx <= 0;
+	       waddr <= 0;
 	   end
 	   else if (M_AXIS_PIVOTROW_TVALID) begin
-	       widx <= widx + 1; //write next 4 bytes, just need to supply index
+	       waddr <= waddr + 4; //write next 4 bytes
 	   end
 	end
-	
-	//BRAM output signals
-	assign wen = M_AXIS_PIVOTROW_TVALID;
-	    
+		    
 endmodule
