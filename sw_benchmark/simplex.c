@@ -3,8 +3,7 @@
 #include <string.h>
 
 #define debug 1
-#define MAX_ROWS 1000
-#define MAX_COLS 1000
+#define MAX_LINE_LEN 100
 
 void print_matrix(int m, int n, float A[][n]) {
   for (int i = 0; i < m; i++) {
@@ -143,13 +142,11 @@ int main(int argc, char *argv[]) {
     return 1; //error return
   }
 
-  //read file line by line
-  char file_line[100];
+  //variables to help with reading lines
+  char file_line[MAX_LINE_LEN];
   int num_rows = 0;
   int num_cols = 0;
   int file_row_cnt = 0;
-  //double matrix[MAX_ROWS][MAX_COLS];
-
 
   //read first line only
   fgets(file_line, sizeof(file_line), fptr);
@@ -157,25 +154,14 @@ int main(int argc, char *argv[]) {
   num_rows = atoi(token);
   token = strtok(NULL, " ");
   num_cols = atoi(token);
-
-  //float (*matrix)[MAX_COLS] = malloc(sizeof(float[MAX_ROWS][MAX_COLS]));
+  //create 2d array to store tableau
   float (*matrix)[num_cols] = malloc(sizeof(float[num_rows][num_cols]));
   
   //read other rows now
   while (fgets(file_line, sizeof(file_line), fptr)) {
-    //split at space
-    char *token = strtok(file_line, " ");
+    char *token = strtok(file_line, " "); //split at space
     int file_col_cnt = 0;
     while (token) {
-      /*if ((file_row_cnt == 0) && (file_col_cnt == 0)) {
-        num_rows = atoi(token);
-      }
-      else if ((file_row_cnt == 0) && (file_col_cnt == 1)) {
-        num_cols = atoi(token);
-      }
-      else if (file_row_cnt > 0) {
-        matrix[file_row_cnt-1][file_col_cnt] = atof(token);
-      }*/
       matrix[file_row_cnt][file_col_cnt] = atof(token);
       token = strtok(NULL, " ");
       file_col_cnt++;
