@@ -3,22 +3,48 @@
 #include <string.h>
 
 #define debug 1
-#define MAX_ROWS 100
-#define MAX_COLS 100
+#define MAX_ROWS 1000
+#define MAX_COLS 1000
+
+void print_matrix(int m, int n, float A[][n]) {
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+      printf("%f ", A[i][j]);
+    }
+    printf("\n");
+  }
+}
+
+void display_soln(int m, int n, float A[][n], char* vars[]) {
+  printf("\nfinal solution is:\n");
+    for (int j = 0; j < n; j++) { //i in range(0, len(vars)): #iterate thru all vars
+      float sum = 0;
+      int flag_neg = 0;
+      int one_row_idx = -1;
+      for (int i = 0; i < m; i++) { //j in range(0, len(A)): #iterate thru all rows in that column
+        if (A[i][j] < 0) {
+          flag_neg = 1;
+        }
+        if (A[i][j] == 1) {
+          one_row_idx = i;
+        }
+        sum = sum + A[i][j];
+      }
+      if ((!flag_neg) && (sum == 1)) {
+        printf("%s  = %f\n", vars[j], A[one_row_idx][n-1]);
+        //printf(str(vars[j]) + " = " + str(A[one_row_idx][-1]));
+      }
+    }
+}
 
 void simplex(int m, int n, float A[][n], char* vars[]) {
-    //m is number of rows in array A
-    //n is number of cols in array A
-    //print all rows
-    if (debug) {
-        printf("STARTING SIMPLEX ON: \n");
-        for (int i = 0; i < m; i++) { //iterate thru all rows
-            for (int j = 0; j < n; j++) {
-                printf("%f ", A[i][j]);
-            }
-            printf("\n");
-        }
-    }
+  //m is number of rows in array A
+  //n is number of cols in array A
+  //print all rows
+  if (debug) {
+      printf("STARTING SIMPLEX ON: \n");
+      print_matrix(m, n, A);
+  }
 
   int flag_soln = 1;
   int go = 0;
@@ -41,7 +67,7 @@ void simplex(int m, int n, float A[][n], char* vars[]) {
     } 
     else {
       if (debug) {
-        printf("pivot col not found, exiting");
+        printf("pivot col not found, exiting\n");
       }
       break; //leave while loop bc no pivot col found
     }
@@ -90,14 +116,8 @@ void simplex(int m, int n, float A[][n], char* vars[]) {
       }
     }
 
-    //print all rows
-    if (debug) {
-        for (int i = 0; i < m; i++) { //iterate thru all rows
-            for (int j = 0; j < n; j++) {
-                printf("%f ", A[i][j]);
-            }
-            printf("\n");
-        }
+    if (debug) { //print all rows
+      print_matrix(m, n, A);
     }
   }
 
@@ -105,27 +125,8 @@ void simplex(int m, int n, float A[][n], char* vars[]) {
   if (!flag_soln) {
     printf("no solution possible: could not find pivot row with non-negative ratio");
   }
-  else {
-    //display solution matrix:
-    printf("\nfinal solution is:\n");
-    for (int j = 0; j < n; j++) { //i in range(0, len(vars)): #iterate thru all vars
-      float sum = 0;
-      int flag_neg = 0;
-      int one_row_idx = -1;
-      for (int i = 0; i < m; i++) { //j in range(0, len(A)): #iterate thru all rows in that column
-        if (A[i][j] < 0) {
-          flag_neg = 1;
-        }
-        if (A[i][j] == 1) {
-          one_row_idx = i;
-        }
-        sum = sum + A[i][j];
-      }
-      if ((!flag_neg) && (sum == 1)) {
-        printf("%s  = %f\n", vars[j], A[one_row_idx][n-1]);
-        //printf(str(vars[j]) + " = " + str(A[one_row_idx][-1]));
-      }
-    }
+  else if (vars) {
+    display_soln(m, n, A, vars); //display solution matrix
   }
 }
 
@@ -185,13 +186,8 @@ int main(int argc, char *argv[]) {
   printf("\n");
   printf("num_rows is: %d\n", num_rows);
   printf("num_cols is: %d\n", num_cols);
+  print_matrix(num_rows, num_cols, matrix);
 
-  for (int i = 0; i < num_rows; i++) {
-    for (int j = 0; j < num_cols; j++) {
-      printf("%f ", matrix[i][j]);
-    }
-    printf("\n");
-  }
 
   printf("starting \n");
   //float A_test[][7] = {{1, 2, 1, 0, 0, 0, 16}, {1,1,0,1,0,0,9}, {3,2,0,0,1,0,24}, {-40,-30,0,0,0,1,0}};
@@ -199,6 +195,10 @@ int main(int argc, char *argv[]) {
 
   //simplex(4, 7, A_test, vars_test);
   simplex(num_rows, num_cols, matrix, vars_test);
+  //simplex(num_rows, num_cols, matrix, NULL); //if do not want to pass in char array of variable names
+
+  printf("post algo\n");
+  print_matrix(num_rows, num_cols, matrix);
 
   free(matrix);
   fclose(fptr);
