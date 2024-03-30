@@ -1,8 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <stdint.h>
 
-#define debug 1
+#define debug 0
 #define MAX_LINE_LEN 100
 
 void print_matrix(int m, int n, float A[][n]) {
@@ -130,12 +137,13 @@ void simplex(int m, int n, float A[][n], char* vars[]) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    printf("Error: must supply file name as input\n");
+  if (argc != 3) {
+    printf("Error: must supply both txt and bin file names as input\n");
     return 1; //error return
   }
 
   char *filename = argv[1];
+  char *binfilename = argv[2];
   FILE *fptr = fopen(filename, "r");
   if (fptr == NULL) {
     printf("Error: could not open file\n");
@@ -174,6 +182,185 @@ int main(int argc, char *argv[]) {
   printf("num_cols is: %d\n", num_cols);
   print_matrix(num_rows, num_cols, matrix);
 
+  //try using mmap to read file
+  int fd = open(binfilename, O_RDONLY);
+
+  if (fd == -1)
+  {
+    printf("Error opening file for reading\n");
+    return 1;
+}
+
+  int pagesize = getpagesize();
+  struct stat st;
+  printf("pagesize: %d\n", pagesize);
+
+  if (fstat(fd, &st) == -1) {
+      printf("Error: cannot get file size\n");
+      close(fd);
+      return 1;
+  }
+
+  int status = stat(binfilename, &st);
+
+  // Map the file into memory
+  //float* floatArray = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  //float* floatArray = (float *) mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+  char* arr = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+  if (arr == MAP_FAILED) {
+    printf("Error: cannot map file to memory\n");
+    close(fd);
+    return 1;
+  }
+
+  size_t numFloats = st.st_size / sizeof(char); //sizeof(float);
+  printf("sizeof(float):%d\n", sizeof(float));
+
+  // Print the byte values
+  printf("Hex values read from file:\n");
+  for (size_t i = 0; i < numFloats; i++) {
+      //float val = arr[i];
+      //float val = floatArray[i];
+      printf("%x ", arr[i]);
+  }
+
+  int num_rows_from_bin = arr[3];
+  printf("num_rows_from_bin: %d\n", num_rows_from_bin);
+  int num_cols_from_bin = arr[7];
+  printf("num_cols_from_bin: %d\n", num_cols_from_bin);
+
+  close(fd);
+
+  union IntFloat {  int32_t i;  float f;  }; //Declare combined datatype for HEX to FLOAT conversion
+  union IntFloat valUnion; 
+
+  printf("floats each 4 bytes:\n");
+  float (*floatArray)[num_cols_from_bin] = malloc(sizeof(float[num_rows_from_bin][num_cols_from_bin]));
+  int idx = 8;
+  for (int i = 0; i < num_rows_from_bin; i++) {
+    for (int j = 0; j < num_cols_from_bin; j++) {
+      printf("arr[idx+3]: %x ", (uint32_t)arr[idx] & 0x000000ff);
+      printf("%x ", (uint32_t)arr[idx+1] & 0x000000ff);
+      printf("%x ", (uint32_t)arr[idx+2] & 0x000000ff);
+      printf("%x\n", (uint32_t)arr[idx+3] & 0x000000ff);
+      uint32_t temp;
+      temp  = ((uint32_t)arr[idx+3] & 0x000000ff);
+      temp |= ( ((uint32_t)arr[idx+2] & 0x000000ff) << 8);
+      temp |= ( ((uint32_t)arr[idx+1] & 0x000000ff) << 16);
+      temp |= ( ((uint32_t)arr[idx] & 0x000000ff) << 24);
+      memcpy(&floatArray[i][j], &temp, sizeof(float));
+      printf("%f \n", floatArray[i][j]);
+      //printf("%f ", 0x40400000);
+      float val;
+      memcpy(&val, &temp, sizeof(val));
+      //rintf("\nsingle fp: %f\n", val);
+
+      valUnion.i = temp; 
+      //printf("\nFloat: %f\n", valUnion.f); 
+
+
+      idx+=4;
+    }
+    printf("\n");
+  }
+
+  print_matrix(num_rows_from_bin, num_cols_from_bin, floatArray);
+
+  /*for (size_t i = 8; i < numFloats; i+=4) {
+      float val = arr[i]; //floatArray[i];
+      //float val = floatArray[i];
+      printf("%f ", val);
+      //printf("%f\n", floatArray[i]);
+      //printf("%02X ", ((unsigned char *)floatArray)[i]);
+      //printf("%02X ", ((float*)floatArray)[i]);
+  } */
+
+  // Read the data into an array of floats
+  float *data = (float *)floatArray;
+  float float_buffer[numFloats];
+  for (int i = 0; i < numFloats; i++) {
+      float_buffer[i] = data[i];
+  }
+  // Display the first few floats as an example
+  printf("First few floats:\n");
+  for (int i = 0; i < 10; i++) {
+      printf("%f\n", float_buffer[i]);
+  }
+
+  if (munmap(arr, st.st_size) == -1)
+  {
+    printf("Error: could not unmmap\n");
+    return 1;
+  }
+
+  //try fread on bin file
+  //unsigned char buffer[4];
+  int size = 100;
+  char buffer[size];
+  FILE *ptr;
+
+  ptr = fopen(binfilename,"rb");  // r for read, b for binary
+
+  fread(buffer,sizeof(buffer),1,ptr); // read 10 bytes to our buffer
+  printf("try fread on bin file:\n");
+  for(int i = 0; i<size-1; i++)
+    printf("%x ", buffer[i]); // prints a series of bytes
+
+  //buffer[4] = '\0'; 
+  //printf("Buffer: %x\n", buffer[0]);
+
+  //get row and col info from binary stream
+  /*int num_rows_from_bin = buffer[3];
+  printf("num_rows_from_bin: %d\n", num_rows_from_bin);
+  int num_cols_from_bin = buffer[7];
+  printf("num_cols_from_bin: %d\n", num_cols_from_bin);*/
+
+  //this works! tested with convert.bin:
+  uint32_t temp;
+  float val;
+  temp  = (uint32_t)buffer[3];
+  temp |= (uint32_t)buffer[2] << 8;
+  temp |= (uint32_t)buffer[1] << 16;
+  temp |= (uint32_t)buffer[0] << 24;
+  memcpy(&val, &temp, sizeof(val));
+  printf("\nsingle fp: %f\n", val);
+  
+  idx = 20;
+  temp  = ((uint32_t)buffer[idx+3]);
+  temp |= ((uint32_t)buffer[idx+2] << 8);
+  temp |= (((uint32_t)buffer[idx+1] << 16));
+  temp |= (((uint32_t)buffer[idx] << 24));
+  memcpy(&val, &temp, sizeof(val));
+  printf("\nsingle fp: %f\n", val);
+
+
+  uint32_t num;
+  float f;
+  char myString[2];
+  strncpy (myString, buffer, 2);
+  //myString[2] = '\0';   /* null character manually added */
+  //printf("\n%x\n", myString);
+  //printf("\n%x\n", buffer);*/
+  //char myString[]="0x40400000";
+  sscanf(myString, "%x", &num);  // assuming you checked input
+  f = *((float*)&num);
+  printf("the hexadecimal 0x%08x becomes %.3f as a float\n", num, f); 
+
+  unsigned int hex;
+  const char *hex_str = "40490FDB";
+  //*buffer = "40490FDB";
+  sscanf(buffer,"%X",&hex);
+  float hex_to_float;
+  *((unsigned int *)&hex_to_float) = hex;
+  // Output the result
+  printf("Hexadecimal: %s\n", buffer);
+  printf("Float: %f\n", hex_to_float);
+
+  printf("%f\n",f);
+  printf("%d", buffer[0]);
+
+
+  //unsigned char* data = mmap((caddr_t)0, pagesize, PROT_READ, MAP_SHARED, fptr, pagesize);
 
   printf("starting \n");
   //float A_test[][7] = {{1, 2, 1, 0, 0, 0, 16}, {1,1,0,1,0,0,9}, {3,2,0,0,1,0,24}, {-40,-30,0,0,0,1,0}};
