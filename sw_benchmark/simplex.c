@@ -9,8 +9,9 @@
 #include <sys/stat.h>
 #include <stdint.h>
 
-#define debug 1
-#define MAX_LINE_LEN 100
+#define debug 0
+
+//for benchmarking ECE532 project 
 
 void print_matrix(int m, int n, float A[][n]) {
   for (int i = 0; i < m; i++) {
@@ -23,7 +24,7 @@ void print_matrix(int m, int n, float A[][n]) {
 
 void display_soln(int m, int n, float A[][n], char* vars[]) {
   printf("\nfinal solution is:\n");
-    for (int j = 0; j < n; j++) { //i in range(0, len(vars)): #iterate thru all vars
+    for (int j = 0; j < n-1; j++) { //i in range(0, len(vars)): #iterate thru all vars
       float sum = 0;
       int flag_neg = 0;
       int one_row_idx = -1;
@@ -41,6 +42,44 @@ void display_soln(int m, int n, float A[][n], char* vars[]) {
         //printf(str(vars[j]) + " = " + str(A[one_row_idx][-1]));
       }
     }
+}
+
+void store_soln (int m, int n, float A[][n], char* outfile) {
+  //go through each column in output, each col corresponds to a variable
+  //if the col has only one 1 and rest are all zeroes, use the row with the 1 to index into last column
+  //if the col does NOT have only one 1 and rest zeroes, then assume 0
+  //store values as we go into output txt file as ascii values, separated by spaces
+
+  FILE *file_ptr = fopen(outfile, "w");
+  if (file_ptr == NULL) {
+    printf("Error: could not open store_soln output file\n");
+    exit(1);
+  }
+
+  for (int j = 0; j < n-1; j++) { //i in range(0, len(vars)): #iterate thru all vars
+    float sum = 0;
+    int flag_neg = 0;
+    int one_row_idx = -1;
+    for (int i = 0; i < m; i++) { //j in range(0, len(A)): #iterate thru all rows in that column
+      if (A[i][j] < 0) {
+        flag_neg = 1;
+      }
+      if (A[i][j] == 1) {
+        one_row_idx = i;
+      }
+      sum = sum + A[i][j];
+    }
+    if ((!flag_neg) && (sum == 1)) {
+      //printf("%s  = %f\n", vars[j], A[one_row_idx][n-1]);
+      fprintf(file_ptr, "%f ",  A[one_row_idx][n-1]);
+    }
+    else {
+      fprintf(file_ptr, "%f ", 0.0);
+    }
+  }
+
+  fclose(file_ptr);
+  printf("Successfully stored results into output txt file\n");
 }
 
 void simplex(int m, int n, float A[][n], char* vars[]) {
@@ -208,17 +247,88 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  printf("starting \n");
+  if (debug) printf("starting \n");
   //float A_test[][7] = {{1, 2, 1, 0, 0, 0, 16}, {1,1,0,1,0,0,9}, {3,2,0,0,1,0,24}, {-40,-30,0,0,0,1,0}};
-  char* vars_test[] = {"x1", "x2", "s1", "s2", "s3", "P", "rhs"};
+  char* vars_test[] = {"x1", "x2", "s1", "s2", "s3", "P", "rhs"}; //this only works for the specific A_test above
+  //float A_test[][9] = {{1, 0, 0, 1, 0, 0, 0, 0, 30}, {0, 1, 0, 0, 1, 0, 0, 0, 50}, {0, 0, 1, 0, 0, 1, 0, 0, 100}, {1, 1, 1, 0, 0, 0, 1, 0, 140}, {-5, -4, -3, 0, 0, 0, 0, 1, 0}};
 
+  //ignore: for testing
   //simplex(4, 7, A_test, vars_test);
+  //simplex(5, 9, A_test, NULL);
   //simplex(num_rows, num_cols, floatArray, vars_test);
+
   simplex(num_rows, num_cols, floatArray, NULL); //if do not want to pass in char array of variable names
 
-  printf("post algo\n");
-  print_matrix(num_rows, num_cols, floatArray);
+  if (debug) {
+    printf("done algo\n");
+    print_matrix(num_rows, num_cols, floatArray);
+  }
 
+  /*** storing output into file ***/
+  //remove file extension
+  char *ptr_new_end = strrchr(binfilename, '.'); //find the last occurrence of '.'
+  if (ptr_new_end != NULL) {
+    *ptr_new_end = '\0'; //Null-terminate the string at the position of the last '.'
+  }
+  char* append_str = "_out.txt";
+  char* out_file_name = malloc(strlen(binfilename) + strlen(append_str) + 1);
+  if (out_file_name == NULL) {
+      printf("Error: malloc failed\n");
+      exit(1);
+  }
+  strcpy(out_file_name, binfilename); //to keep binfilename preserved, copy into new char*
+  strcat(out_file_name, append_str); //tack on _out.txt to file name
+  store_soln(num_rows, num_cols, floatArray, out_file_name); //generate the output file
+  //ignore: for testing //store_soln(5, 9, A_test, out_file_name); //generate the output file
+
+  // //try writing to output bin file
+  // const char *filename = "output.bin";
+
+  //   // Open the output file
+  //   fd = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+  //   if (fd == -1) {
+  //       printf("Error: could not open file\n");
+  //       return 1;
+  //   }
+
+  //   // Adjust the file size to accommodate the data
+  //   off_t file_size = sizeof(float) * num_rows * num_cols;
+  //   if (ftruncate(fd, file_size) == -1) {
+  //       printf("Error: could not truncate file\n");
+  //       close(fd);
+  //       return 1;
+  //   }
+
+  //   // Map the file into memory
+  //   float *mapped_data = (float *)mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  //   if (mapped_data == MAP_FAILED) {
+  //       printf("Error mapping file");
+  //       close(fd);
+  //       return 1;
+  //   }
+
+  //   // Write the float array into the memory-mapped region
+  //   int write_counter = 0;
+  //   for (int i = 0; i < num_rows; i++) {
+  //     for (int j = 0; j < num_cols; j++) {
+  //       mapped_data[write_counter] = floatArray[i][j];
+  //       write_counter++;
+  //     }
+  //   }
+
+  //   // Unmap the memory and close the file
+  //   if (munmap(mapped_data, file_size) == -1) {
+  //       printf("Error unmapping file");
+  //       close(fd);
+  //       return 1;
+  //   }
+
+  //   close(fd);
+
+  //   printf("Float array has been written to %s\n", filename);
+
+  //cleanup
   free(floatArray);
+  free(out_file_name);
   return 0;
 }
