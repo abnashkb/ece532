@@ -209,10 +209,15 @@ int main(int argc, char *argv[]) {
   }
 
   //obtain num rows and num cols info
-  int num_rows = arr[3];
-  if (debug) printf("num_rows: %d\n", num_rows);
-  int num_cols = arr[7];
-  if (debug) printf("num_cols: %d\n", num_cols);
+  int num_rows = (((uint32_t)arr[2] & 0x000000ff) << 8) | (((uint32_t)arr[3]) & 0x000000ff); //arr[3];
+  // printf("raw 0: %x ", (uint32_t)arr[0]);
+  // printf("raw 1: %x ", (uint32_t)arr[1]);
+  // printf("raw 2: %x ", (((uint32_t)arr[2] & 0x000000ff) << 8) | ((uint32_t)arr[3]) & 0x000000ff);
+  //printf("raw 2: %x ", ((uint32_t)arr[2] & 0x000000ff << 8) | (uint32_t)arr[3]);
+  // printf("raw 3: %x ", (uint32_t)arr[3]);
+  printf("num_rows: %d\n", num_rows);
+  int num_cols = (((uint32_t)arr[6] & 0x000000ff) << 8) | (((uint32_t)arr[7]) & 0x000000ff); //arr[7];
+  printf("num_cols: %d\n", num_cols);
 
   close(fd); //can close file now
 
