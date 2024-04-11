@@ -12,6 +12,8 @@ module choose_pivot_row
 	//tableau size
 	input [NUM_ROWS_W-1:0] num_rows,
 	
+	input [15:0] curr_iteration,
+	
 	//data
     input wire [DATAW - 1:0] S_AXIS_RHS_COL_TDATA,
     input wire S_AXIS_RHS_COL_TVALID,
@@ -95,19 +97,28 @@ module choose_pivot_row
 			pivot_col_pivot_row_data <= 32'b0;
 		end
 		else if (div_ratio_test_OUT_tvalid && div_ratio_test_OUT_tready && ~cont && ~terminate) begin
-			if (
-				(div_ratio_test_OUT_tuser[0] || div_ratio_test_OUT_tuser[1] || div_ratio_test_OUT_tuser[2]) //division error occurred
-				||
-				((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1) && ~ratio_updated) //reached last value and best_ratio is unchanged
-				) begin
-				terminate <= 1'b1; //tell fsm to terminate the lp problem
-				//cont <= 1'b0; //implied
-			end
-            else if (div_ratio_test_OUT_tuser[3]) begin
+//			if (
+//				(div_ratio_test_OUT_tuser[1]) //overflow error occurred
+//				//||
+//				//((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1) && ~ratio_updated) //reached last value and best_ratio is unchanged
+//				) begin
+//				terminate <= 1'b1; //tell fsm to terminate the lp problem
+//				//cont <= 1'b0; //implied
+//			end
+//            else 
+            if (div_ratio_test_OUT_tuser[0] || div_ratio_test_OUT_tuser[1] || div_ratio_test_OUT_tuser[3] || div_ratio_test_OUT_tuser[2]) begin
                 // divided by infinity so skip this row and do not throw terminate
-                if ((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1) && ratio_updated) begin  // if this was last row do not update algo values but proceed to next stage
+                if ((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1) && ratio_updated) begin  //accept underflow
+                // if this was last row do not update algo values but proceed to next stage
                     cont <= 1'b1;
                 end
+//                else if ((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1) && !ratio_updated &&  div_ratio_test_OUT_tuser[0]) begin
+//                    best_ratio <= div_ratio_test_OUT_tdata;
+//                    pivot_col_pivot_row_data <= div_ratio_test_OUT_tuser[67:36]; //upper 32 bits are pivotcol data
+//                    ratio_updated <= 1'b1;
+//                    pivot_row_index <= div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4];
+//                    cont <= 1'b1;
+//                end
                 else if ((div_ratio_test_OUT_tuser[NUM_ROWS_W+4-1:4] == num_rows - 1)) begin  // div by zero in last row so skip, but no valid pivot row found earlier
                     terminate <= 1'b1;
                 end

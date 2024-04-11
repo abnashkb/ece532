@@ -14,6 +14,7 @@ module update_pivot_row
 	
 	//tableau size
 	input [15:0] num_cols,
+	input [15:0] curr_iteration,
 	
 	//data from prev stage of lp
 	input [DATAW-1:0] factor_in, //elem in pivot row and pivot col
@@ -31,7 +32,7 @@ module update_pivot_row
 	//native BRAM output signals
 	output wen,
 	output [DATAW-1:0] wdata, //directly assigned to divider output
-	output reg [15:0] waddr
+	output reg [31:0] waddr
 	
     );
     
