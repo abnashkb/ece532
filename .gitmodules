@@ -1,0 +1,3 @@
+[submodule "pyomo_fpga_bridge"]
+	path = pyomo_fpga_bridge
+	url = https://github.com/staadecker/pyomo_fpga_bridge
