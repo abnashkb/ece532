@@ -12,4 +12,3 @@ Repository Design Tree Structure is organized into the following folders:
 * sdk\_code contains C code run on the Microblaze, including for data transfer over Ethernet
 * sw\_benchmark has C and Python code used in our software implementations of Simplex; these were used to learn the Simplex algorithm and test our results from hardware
 * verilog\_module: any Verilog files not directly related to the LP modules
-* ECE532 \{Project, Mid-Project, Final Project\} Presentation.pdf: presentation slides for in-class/demo presentations
